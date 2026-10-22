@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marches-publics-radar"
+version = "0.1.0"
+description = "Veille temps reel des appels d'offres marocains et historique des attributions"
+requires-python = ">=3.11"
+
+[project.scripts]
+radar = "app.cli:main"
+
+# Declare explicitement le paquet : sans cela, setuptools devine, et ajouter
+# un dossier a la racine de l'image suffirait a casser la construction.
+[tool.setuptools]
+packages = ["app", "app.sources", "app.notifiers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

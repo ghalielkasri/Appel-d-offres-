@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Profils de veille - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Profils de veille &amp; canaux d'alerte</h1>
+    <p class="page-sub">Ce qui definit votre domaine, et par ou partent les notifications</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Canaux configures</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Canal</th><th>Etat</th><th>Destinataires</th><th>Variables d'environnement</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="strong">Email</td>
+          <td>{% if settings.email_enabled %}<span class="tag tag-success">actif</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</td>
+          <td>{{ settings.email_to | join(', ') or '-' }}</td>
+          <td class="mono cell-sub">SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_TO</td>
+        </tr>
+        <tr>
+          <td class="strong">WhatsApp</td>
+          <td>{% if settings.whatsapp_enabled %}<span class="tag tag-success">actif ({{ settings.whatsapp_provider }})</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</td>
+          <td>{{ settings.whatsapp_to | join(', ') or '-' }}</td>
+          <td class="mono cell-sub">WHATSAPP_PROVIDER, WHATSAPP_TO, TWILIO_* ou META_*</td>
+        </tr>
+        <tr>
+          <td class="strong">Webhook</td>
+          <td>{% if settings.webhook_enabled %}<span class="tag tag-success">actif</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</td>
+          <td class="mono cell-sub">{{ settings.webhook_url or '-' }}</td>
+          <td class="mono cell-sub">WEBHOOK_URL</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cell-sub" style="margin-bottom:0">
+    Verifiez un canal avec <span class="mono">radar test-notify</span>. Les reglages se font dans le fichier <span class="mono">.env</span>,
+    puis <span class="mono">docker compose restart</span>.
+  </p>
+</div>
+
+{% for p in profiles %}
+<div class="card">
+  <div class="card-head">
+    <h2>{{ p.name }} {% if p.active %}<span class="tag tag-success">actif</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</h2>
+    <span class="cell-sub">score minimal : {{ '%.0f'|format(p.min_score) }}</span>
+  </div>
+  {% if p.description %}<p class="cell-sub">{{ p.description }}</p>{% endif %}
+  <dl class="meta">
+    <dt>Categories</dt><dd>{{ p.categories | join(', ') if p.categories else 'toutes' }}</dd>
+    <dt>Montant</dt>
+    <dd>
+      {% if p.min_amount or p.max_amount %}
+        {{ m.amount(p.min_amount) if p.min_amount else 'sans minimum' }} &rarr; {{ m.amount(p.max_amount) if p.max_amount else 'sans maximum' }}
+      {% else %}aucune limite{% endif %}
+    </dd>
+    <dt>Acheteurs</dt><dd>{{ p.buyers | join(', ') if p.buyers else 'tous' }}</dd>
+    <dt>Canaux</dt><dd>{{ p.channels | join(', ') if p.channels else 'tous les canaux actifs' }}</dd>
+  </dl>
+  <div style="margin-top:12px">
+    <div class="cell-sub" style="margin-bottom:4px">Mots-cles retenus ({{ p.keywords | length }})</div>
+    <div>{% for k in p.keywords %}<span class="kw">{{ k }}</span>{% endfor %}</div>
+  </div>
+  {% if p.excluded_keywords %}
+  <div style="margin-top:12px">
+    <div class="cell-sub" style="margin-bottom:4px">Mots-cles d'exclusion ({{ p.excluded_keywords | length }})</div>
+    <div>{% for k in p.excluded_keywords %}<span class="tag tag-danger" style="margin:1px 2px 1px 0">{{ k }}</span>{% endfor %}</div>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="notice notice-info">
+  Pour modifier un profil : <span class="mono">radar profile-edit "{{ profiles[0].name if profiles else 'nom' }}" --add-keyword "pompe doseuse" --min-amount 50000</span>.
+  Le score additionne 3 points par mot-cle trouve dans l'objet du marche, 1 dans le type de procedure et 0,5 dans le nom de l'acheteur.
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
+*.xlsx
+*.csv
+page.html
+.pytest_cache/

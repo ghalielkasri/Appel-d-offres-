@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Exports - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Exports de donnees</h1>
+    <p class="page-sub">Toutes les donnees collectees, dans le format de votre choix</p>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Avis</div><div class="kpi-value">{{ summary.tenders_total }}</div></div>
+  <div class="kpi"><div class="kpi-label">Attributions</div><div class="kpi-value">{{ summary.awards_total }}</div></div>
+  <div class="kpi"><div class="kpi-label">Attributaires</div><div class="kpi-value">{{ summary.suppliers_total }}</div></div>
+  <div class="kpi"><div class="kpi-label">Acheteurs</div><div class="kpi-value">{{ summary.buyers_total }}</div></div>
+</div>
+
+<div class="card">
+  <h2>Export integral</h2>
+  <p class="cell-sub">Tout l'historique en un fichier : avis, attributions, attributaires, acheteurs et journal des collectes.</p>
+  <div class="btn-row">
+    <a class="btn" href="/export/complet.xlsx">Classeur Excel (5 feuilles)</a>
+    <a class="btn btn-light" href="/export/complet.json">JSON complet (charges brutes incluses)</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Exports par table</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Contenu</th><th>Formats</th><th>Remarque</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="strong">Appels d'offres</td>
+          <td><a href="/export/avis.csv">CSV</a></td>
+          <td class="cell-sub">Les filtres de la page "Appels d'offres" s'appliquent a l'export.</td>
+        </tr>
+        <tr>
+          <td class="strong">Attributions</td>
+          <td><a href="/export/attributions.csv">CSV</a> &middot; <a href="/export/attributions.xlsx">Excel</a></td>
+          <td class="cell-sub">Attributaire, montant adjuge, nombre de concurrents, ecart a l'estimation.</td>
+        </tr>
+        <tr>
+          <td class="strong">Attributaires</td>
+          <td><a href="/export/attributaires.csv">CSV</a></td>
+          <td class="cell-sub">Palmares agrege : nombre de marches, montants total, moyen et maximal.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cell-sub" style="margin-bottom:0">Les CSV sont en UTF-8 avec BOM et separateur point-virgule : Excel les ouvre directement.</p>
+</div>
+
+<div class="card">
+  <h2>Acces par API</h2>
+  <p class="cell-sub">Pour brancher un autre outil (Power BI, Looker Studio, un script) :</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th>Contenu</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">GET /api/tenders</td><td class="cell-sub">Avis, avec les memes filtres que l'interface</td></tr>
+        <tr><td class="mono">GET /api/awards</td><td class="cell-sub">Attributions</td></tr>
+        <tr><td class="mono">GET /api/suppliers</td><td class="cell-sub">Classement des attributaires</td></tr>
+        <tr><td class="mono">GET /api/stats</td><td class="cell-sub">Chiffres agreges et serie mensuelle</td></tr>
+        <tr><td class="mono">GET /api/health</td><td class="cell-sub">Etat du service et derniere collecte</td></tr>
+        <tr><td class="mono">POST /api/collect/tenders</td><td class="cell-sub">Declenche une collecte des avis</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cell-sub" style="margin-bottom:0">Documentation interactive : <a href="/docs">/docs</a></p>
+</div>
+{% endblock %}

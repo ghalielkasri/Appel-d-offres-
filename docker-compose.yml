@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: radar
+      POSTGRES_USER: radar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?definissez POSTGRES_PASSWORD dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U radar -d radar"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://radar:${POSTGRES_PASSWORD}@db:5432/radar
+    volumes:
+      # Les pieces du DCE telechargees (CPS, bordereaux) vivent ici. Sans ce
+      # volume, elles disparaitraient a chaque `docker compose up --build`.
+      # Un volume nomme herite des droits du dossier dans l'image, donc de
+      # l'utilisateur radar : un bind mount, lui, exigerait un chown prealable.
+      - appdata:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # N'ecoute que sur la boucle locale : placez un reverse proxy (HTTPS) devant.
+      - "127.0.0.1:8000:8000"
+
+  scheduler:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://radar:${POSTGRES_PASSWORD}@db:5432/radar
+    volumes:
+      # Le planificateur telecharge aussi des pieces : meme volume que le web.
+      - appdata:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "-m", "app.scheduler"]
+    # Le controle de sante de l'image interroge HTTP ; ce service n'ecoute sur
+    # aucun port et serait signale « unhealthy » a tort.
+    healthcheck:
+      disable: true
+
+volumes:
+  pgdata:
+  appdata:

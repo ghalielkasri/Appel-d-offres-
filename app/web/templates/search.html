@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Recherche - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Recherche</h1>
+    <p class="page-sub">Un seul champ pour les appels d'offres, les attributions, les entreprises et les acheteurs</p>
+  </div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field" style="flex:1">
+    <label for="q">Que cherchez-vous ?</label>
+    <input type="text" id="q" name="q" value="{{ q }}" autofocus
+           style="min-width:100%;font-size:15px;padding:10px 12px"
+           placeholder="materiel medical, groupe electrogene, equip maroc, commune de tanger...">
+  </div>
+  <button class="btn" type="submit" style="padding:10px 20px">Rechercher</button>
+</form>
+
+{% if not q %}
+<div class="card">
+  <h2>Comment chercher</h2>
+  <dl class="meta">
+    <dt>Accents</dt><dd>Inutile de les taper : « materiel » trouve « matériel », « tetouan » trouve « Tétouan ».</dd>
+    <dt>Plusieurs mots</dt><dd>Tous les mots doivent être présents : « materiel tetouan » ne ramène que les marchés de matériel à Tétouan.</dd>
+    <dt>Entreprise</dt><dd>Tapez une raison sociale pour voir tout ce qu'elle a remporté, quelle que soit la façon dont elle est écrite dans les avis.</dd>
+    <dt>Périmètre</dt><dd>La recherche porte sur <strong>tous</strong> les avis collectés, y compris hors de votre domaine de veille.</dd>
+  </dl>
+</div>
+{% elif results.is_empty %}
+  <div class="card">
+    {{ m.empty('Aucun résultat pour « ' ~ q ~ ' »', 'Essayez un terme plus court, ou vérifiez que la collecte a déjà tourné.') }}
+  </div>
+{% else %}
+
+<p class="page-sub" style="margin-bottom:16px">
+  <strong>{{ results.total }}</strong> résultat(s) pour « {{ q }} » :
+  {{ results.tenders_total }} avis, {{ results.awards_total }} attribution(s),
+  {{ results.suppliers|length }} entreprise(s), {{ results.buyers|length }} acheteur(s)
+</p>
+
+{% if results.suppliers %}
+<div class="card">
+  <div class="card-head">
+    <h2>Entreprises ({{ results.suppliers|length }})</h2>
+    <a class="btn btn-light btn-sm" href="/attributaires?q={{ q|urlencode }}">Voir le classement</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Attributaire</th><th class="num">Marchés</th><th class="num">Montant total</th><th class="num">Moyen</th><th class="num">Acheteurs</th><th>Période</th></tr></thead>
+      <tbody>
+      {% for s in results.suppliers %}
+        <tr>
+          <td class="strong">{% if s.supplier_id %}<a href="/attributaires/{{ s.supplier_id }}">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}</td>
+          <td class="num">{{ s.awards_count }}</td>
+          <td class="num strong">{{ m.amount(s.total_amount) }}</td>
+          <td class="num">{{ m.amount(s.avg_amount) }}</td>
+          <td class="num">{{ s.buyers_count }}</td>
+          <td class="cell-sub nowrap">{{ s.first_award.strftime('%m/%Y') if s.first_award else '-' }} &rarr; {{ s.last_award.strftime('%m/%Y') if s.last_award else '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if results.tenders %}
+<div class="card">
+  <div class="card-head">
+    <h2>Appels d'offres ({{ results.tenders_total }})</h2>
+    <a class="btn btn-light btn-sm" href="/avis?q={{ q|urlencode }}&pertinents=false">Tout voir avec filtres</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Objet</th><th>Acheteur</th><th class="num">Estimation</th><th>Date limite</th><th>Statut</th></tr></thead>
+      <tbody>
+      {% for t in results.tenders %}
+        <tr>
+          <td style="max-width:400px">
+            <div class="cell-main"><a href="/avis/{{ t.id }}">{{ t.object or 'Objet non précisé' }}</a></div>
+            <div class="cell-sub">{{ t.reference or '-' }} &middot; {{ t.category.value }}{% if t.execution_place %} &middot; {{ t.execution_place }}{% endif %}</div>
+          </td>
+          <td>{{ t.buyer_raw or '-' }}</td>
+          <td class="num">{{ m.amount(t.estimated_amount, t.currency) }}</td>
+          <td class="nowrap">{{ t.submission_deadline.strftime('%d/%m/%Y') if t.submission_deadline else '-' }} {{ m.deadline_tag(t) }}</td>
+          <td>{{ m.status_tag(t.status) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if results.tenders_total > results.tenders|length %}
+  <p class="cell-sub" style="margin-bottom:0">{{ results.tenders|length }} premiers affichés sur {{ results.tenders_total }}.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if results.awards %}
+<div class="card">
+  <div class="card-head">
+    <h2>Attributions ({{ results.awards_total }})</h2>
+    <a class="btn btn-light btn-sm" href="/attributions?q={{ q|urlencode }}">Tout voir avec filtres</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Objet</th><th>Acheteur</th><th>Attributaire</th><th class="num">Montant adjugé</th><th class="num">Concur.</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for a in results.awards %}
+        <tr>
+          <td style="max-width:340px">
+            <div class="cell-main">{% if a.consultation_url %}<a href="{{ a.consultation_url }}" target="_blank" rel="noopener">{{ a.object or 'Objet non précisé' }}</a>{% else %}{{ a.object or 'Objet non précisé' }}{% endif %}</div>
+            <div class="cell-sub">{{ a.reference or '-' }}{% if a.lot_number %} &middot; lot {{ a.lot_number }}{% endif %}</div>
+          </td>
+          <td>{{ a.buyer_raw or '-' }}</td>
+          <td class="strong">{% if a.supplier %}<a href="/attributaires/{{ a.supplier.id }}">{{ a.supplier.name }}</a>{% else %}{{ a.supplier_raw or '-' }}{% endif %}</td>
+          <td class="num strong">{{ m.amount(a.awarded_amount, a.currency) }}{% if a.amount_includes_tax is not none %}<div class="cell-sub">{{ 'TTC' if a.amount_includes_tax else 'HT' }}</div>{% endif %}</td>
+          <td class="num">{{ a.bids_count if a.bids_count is not none else '-' }}</td>
+          <td class="nowrap">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if results.awards_total > results.awards|length %}
+  <p class="cell-sub" style="margin-bottom:0">{{ results.awards|length }} premières affichées sur {{ results.awards_total }}, les plus gros montants d'abord.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if results.buyers %}
+<div class="card">
+  <h2>Acheteurs ({{ results.buyers|length }})</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Acheteur</th><th class="num">Marchés attribués</th><th class="num">Montant total</th><th class="num">Fournisseurs</th></tr></thead>
+      <tbody>
+      {% for b in results.buyers %}
+        <tr>
+          <td class="strong"><a href="/attributions?acheteur={{ b.name|urlencode }}">{{ b.name }}</a></td>
+          <td class="num">{{ b.awards_count }}</td>
+          <td class="num strong">{{ m.amount(b.total_amount) }}</td>
+          <td class="num">{{ b.suppliers_count }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

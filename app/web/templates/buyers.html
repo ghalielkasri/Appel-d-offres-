@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Acheteurs - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Acheteurs publics</h1>
+    <p class="page-sub">Classement par montant total attribue</p>
+  </div>
+</div>
+<div class="card">
+{% if buyers %}
+{% set maxi = buyers[0].total_amount or 1 %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>Acheteur</th><th class="num">Marches</th><th class="num">Montant total</th><th class="num">Fournisseurs</th><th></th></tr></thead>
+    <tbody>
+    {% for b in buyers %}
+      <tr>
+        <td class="cell-sub">{{ loop.index }}</td>
+        <td class="strong"><a href="/attributions?acheteur={{ b.name|urlencode }}">{{ b.name }}</a></td>
+        <td class="num">{{ b.awards_count }}</td>
+        <td class="num strong">{{ m.amount(b.total_amount) }}</td>
+        <td class="num">{{ b.suppliers_count }}</td>
+        <td style="width:70px"><div class="bar"><span style="width: {{ (100 * b.total_amount / maxi)|round|int }}%"></span></div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ m.empty('Aucun acheteur connu', 'Les acheteurs apparaissent des que des attributions sont collectees.') }}
+{% endif %}
+</div>
+{% endblock %}

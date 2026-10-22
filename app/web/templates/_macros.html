@@ -1,0 +1,39 @@
+{% macro amount(value, currency='MAD') %}{% if value is none %}<span class="cell-sub">-</span>{% else %}{{ '{:,.0f}'.format(value).replace(',', ' ') }} <span class="cell-sub">{{ 'DH' if currency in ('MAD', '', none) else currency }}</span>{% endif %}{% endmacro %}
+
+{% macro deadline_tag(tender) %}
+  {% if tender.submission_deadline %}
+    {% set d = tender.days_left %}
+    {% if d is not none and d < 0 %}<span class="tag tag-muted">cloture</span>
+    {% elif d is not none and d <= 3 %}<span class="tag tag-danger">J-{{ d }}</span>
+    {% elif d is not none and d <= 10 %}<span class="tag tag-warn">J-{{ d }}</span>
+    {% elif d is not none %}<span class="tag tag-muted">J-{{ d }}</span>{% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro status_tag(status) %}
+  {% set v = status.value if status.value is defined else status %}
+  {% if v == 'awarded' %}<span class="tag tag-success">attribue</span>
+  {% elif v == 'cancelled' %}<span class="tag tag-danger">annule</span>
+  {% elif v == 'closed' %}<span class="tag tag-muted">cloture</span>
+  {% else %}<span class="tag tag-primary">en cours</span>{% endif %}
+{% endmacro %}
+
+{% macro pagination(page_data, params) %}
+  {% if page_data.pages > 1 %}
+  <div class="pagination">
+    {% set qs = [] %}
+    {% for k, v in params.items() if k != 'page' %}{% set _ = qs.append(k ~ '=' ~ v) %}{% endfor %}
+    {% set base = '?' ~ (qs | join('&')) ~ ('&' if qs else '') %}
+    {% if page_data.has_prev %}<a class="btn btn-light btn-sm" href="{{ base }}page={{ page_data.page - 1 }}">Precedent</a>{% endif %}
+    <span>Page {{ page_data.page }} / {{ page_data.pages }} &middot; {{ page_data.total }} resultat(s)</span>
+    {% if page_data.has_next %}<a class="btn btn-light btn-sm" href="{{ base }}page={{ page_data.page + 1 }}">Suivant</a>{% endif %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro empty(title, hint) %}
+<div class="empty">
+  <div class="empty-title">{{ title }}</div>
+  <div>{{ hint }}</div>
+</div>
+{% endmacro %}

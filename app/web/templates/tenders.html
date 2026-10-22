@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Appels d'offres - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Appels d'offres</h1>
+    <p class="page-sub">{{ page_data.total }} avis correspondant aux filtres</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-light" href="/export/avis.csv?{{ request.url.query }}">Exporter en CSV</a>
+  </div>
+</div>
+
+<form class="filters" method="get">
+  <div class="field field-wide">
+    <label for="q">Recherche</label>
+    <input type="text" id="q" name="q" value="{{ params.get('q', '') }}" placeholder="objet, reference, acheteur, ville">
+  </div>
+  <div class="field">
+    <label for="categorie">Categorie</label>
+    <select id="categorie" name="categorie">
+      <option value="">Toutes</option>
+      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if params.get('categorie') == c }}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="statut">Statut</label>
+    <select id="statut" name="statut">
+      <option value="">Tous</option>
+      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if params.get('statut') == s }}>{{ s }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="acheteur">Acheteur</label>
+    <input type="text" id="acheteur" name="acheteur" value="{{ params.get('acheteur', '') }}">
+  </div>
+  <div class="field">
+    <label for="min_montant">Estimation min.</label>
+    <input type="number" id="min_montant" name="min_montant" value="{{ params.get('min_montant', '') }}" step="1000">
+  </div>
+  <div class="field">
+    <label for="tri">Trier par</label>
+    <select id="tri" name="tri">
+      <option value="recent" {{ 'selected' if params.get('tri', 'recent') == 'recent' }}>Plus recents</option>
+      <option value="deadline" {{ 'selected' if params.get('tri') == 'deadline' }}>Date limite</option>
+      <option value="amount" {{ 'selected' if params.get('tri') == 'amount' }}>Montant</option>
+      <option value="score" {{ 'selected' if params.get('tri') == 'score' }}>Pertinence</option>
+    </select>
+  </div>
+  {# Le champ cache precede la case : un navigateur n'envoie rien pour une case decochee. #}
+  <input type="hidden" name="ouverts" value="false">
+  <label class="check"><input type="checkbox" name="ouverts" value="true" {{ 'checked' if params.get('ouverts') == 'true' }}> Ouverts seulement</label>
+  <input type="hidden" name="pertinents" value="false">
+  <label class="check"><input type="checkbox" name="pertinents" value="true" {{ 'checked' if params.get('pertinents', 'true') == 'true' }}> Mon domaine</label>
+  <button class="btn" type="submit">Filtrer</button>
+  <a class="btn btn-light" href="/avis">Reinitialiser</a>
+</form>
+
+<div class="card">
+{% if page_data.items %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Objet</th><th>Acheteur</th><th>Categorie</th><th class="num">Estimation</th><th>Date limite</th><th>Statut</th><th class="num">Score</th></tr>
+    </thead>
+    <tbody>
+    {% for t in page_data.items %}
+      <tr>
+        <td style="max-width:420px">
+          <div class="cell-main"><a href="/avis/{{ t.id }}">{{ t.object or 'Objet non precise' }}</a></div>
+          <div class="cell-sub">{{ t.reference or '-' }}{% if t.procedure_type %} &middot; {{ t.procedure_type }}{% endif %}{% if t.execution_place %} &middot; {{ t.execution_place }}{% endif %}</div>
+          <div>
+            {% for f in t.families %}<span class="tag tag-primary" style="margin:1px 2px 1px 0">{{ f|famille }}</span>{% endfor %}
+            {% for k in t.matched_keywords[:4] %}<span class="kw">{{ k }}</span>{% endfor %}
+          </div>
+        </td>
+        <td>{{ t.buyer_raw or '-' }}{% if t.buyer_service %}<div class="cell-sub">{{ t.buyer_service }}</div>{% endif %}</td>
+        <td><span class="tag tag-muted">{{ t.category.value }}</span></td>
+        <td class="num">{{ m.amount(t.estimated_amount, t.currency) }}</td>
+        <td class="nowrap">{{ t.submission_deadline.strftime('%d/%m/%Y') if t.submission_deadline else '-' }} {{ m.deadline_tag(t) }}</td>
+        <td>{{ m.status_tag(t.status) }}</td>
+        <td class="num strong">{{ '%.0f'|format(t.match_score) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  {{ m.empty('Aucun avis ne correspond', 'Elargissez les filtres, ou decochez "Mon domaine" pour voir tous les avis collectes.') }}
+{% endif %}
+</div>
+{{ m.pagination(page_data, params) }}
+{% endblock %}

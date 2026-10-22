@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ supplier.name }} - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ supplier.name }}</h1>
+    <p class="page-sub">Cle de regroupement : <span class="mono">{{ supplier.normalized_name }}</span></p>
+  </div>
+  <a class="btn btn-light" href="/attributions?attributaire={{ supplier.name|urlencode }}">Voir dans les attributions</a>
+</div>
+
+<div class="kpis">
+  <div class="kpi">
+    <div class="kpi-label">Marches remportes</div>
+    <div class="kpi-value">{{ history|length }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Montant total</div>
+    <div class="kpi-value">{{ '{:,.0f}'.format(total).replace(',', ' ') }}</div>
+    <div class="kpi-hint">dirhams</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Montant moyen</div>
+    <div class="kpi-value">{{ '{:,.0f}'.format(total / history|length).replace(',', ' ') if history else 0 }}</div>
+    <div class="kpi-hint">dirhams par marche</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Marches remportes</h2>
+  {% if history %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Objet</th><th>Acheteur</th><th class="num">Montant</th><th class="num">Concurrents</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for a in history %}
+        <tr>
+          <td>
+            <div class="cell-main">{% if a.consultation_url %}<a href="{{ a.consultation_url }}" target="_blank" rel="noopener">{{ a.object or 'Objet non precise' }}</a>{% else %}{{ a.object or 'Objet non precise' }}{% endif %}</div>
+            <div class="cell-sub">{{ a.reference or '-' }}{% if a.lot_number %} &middot; lot {{ a.lot_number }}{% endif %} &middot; {{ a.category.value }}</div>
+          </td>
+          <td>{{ a.buyer_raw or '-' }}</td>
+          <td class="num strong">{{ m.amount(a.awarded_amount, a.currency) }}</td>
+          <td class="num">{{ a.bids_count if a.bids_count is not none else '-' }}</td>
+          <td class="nowrap">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ m.empty('Aucun marche enregistre', 'Cet attributaire existe en base mais aucune attribution ne lui est rattachee.') }}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+# --- API & web ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+jinja2==3.1.5
+python-multipart==0.0.20
+
+# --- Donnees ---
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.14.0
+
+# --- Collecte ---
+httpx==0.28.1
+beautifulsoup4==4.12.3
+lxml==5.3.0
+rapidfuzz==3.10.1
+
+# --- Config, planification, CLI ---
+pydantic==2.10.4
+pydantic-settings==2.7.0
+APScheduler==3.11.0
+typer==0.15.1
+# click 8.2 a change la signature de Parameter.make_metavar, que typer 0.15 appelle
+# a l'ancienne : la version est donc fixee.
+click==8.1.8
+rich==13.9.4
+
+# --- Export ---
+openpyxl==3.1.5
