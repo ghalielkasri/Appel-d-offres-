@@ -1,94 +1,94 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
-{% block title %}Appels d'offres - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Appels d'offres{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Veille</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Appels d'offres</h1>{% endblock %}
+{% block top_right %}<a class="ct-btn rd-top-extra" href="/export/avis.csv{{ qs(params) }}">{{ m.icon('download') }} CSV</a>{% endblock %}
 {% block content %}
-<div class="page-head">
+{%- set mine = params.get('pertinents', 'true') not in ('false', '0', '') -%}
+{%- set open_only = params.get('ouverts') in ('true', '1', 'on') -%}
+{%- set extra = [] -%}
+{%- for k in ['acheteur', 'statut', 'min_montant', 'max_montant', 'du', 'au'] if params.get(k) %}{% set _ = extra.append(k) %}{% endfor -%}
+{%- set tri = params.get('tri', 'recent') -%}
+<div class="ct-hello">
   <div>
-    <h1>Appels d'offres</h1>
-    <p class="page-sub">{{ page_data.total }} avis correspondant aux filtres</p>
+    <h2>Appels d'offres</h2>
+    <p>{{ page_data.total }} avis {{ 'de votre domaine' if mine else 'collectés' }}{{ ', ouverts' if open_only }}{% if params.get('q') %} pour « {{ params.q }} »{% endif %}.</p>
   </div>
-  <div class="btn-row">
-    <a class="btn btn-light" href="/export/avis.csv?{{ request.url.query }}">Exporter en CSV</a>
+  <div class="ct-stats">
+    <a class="ct-stat" href="/avis?ouverts=true"><span class="ct-stat-v">{{ nav.open }}</span><span class="ct-stat-l">Ouverts, mon domaine</span></a>
+    <a class="ct-stat" href="/candidatures"><span class="ct-stat-v">{{ nav.bids }}</span><span class="ct-stat-l">Suivis</span></a>
   </div>
 </div>
 
-<form class="filters" method="get">
-  <div class="field field-wide">
-    <label for="q">Recherche</label>
-    <input type="text" id="q" name="q" value="{{ params.get('q', '') }}" placeholder="objet, reference, acheteur, ville">
-  </div>
-  <div class="field">
-    <label for="categorie">Categorie</label>
-    <select id="categorie" name="categorie">
-      <option value="">Toutes</option>
-      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if params.get('categorie') == c }}>{{ c }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label for="statut">Statut</label>
-    <select id="statut" name="statut">
-      <option value="">Tous</option>
-      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if params.get('statut') == s }}>{{ s }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label for="acheteur">Acheteur</label>
-    <input type="text" id="acheteur" name="acheteur" value="{{ params.get('acheteur', '') }}">
-  </div>
-  <div class="field">
-    <label for="min_montant">Estimation min.</label>
-    <input type="number" id="min_montant" name="min_montant" value="{{ params.get('min_montant', '') }}" step="1000">
-  </div>
-  <div class="field">
-    <label for="tri">Trier par</label>
-    <select id="tri" name="tri">
-      <option value="recent" {{ 'selected' if params.get('tri', 'recent') == 'recent' }}>Plus recents</option>
-      <option value="deadline" {{ 'selected' if params.get('tri') == 'deadline' }}>Date limite</option>
-      <option value="amount" {{ 'selected' if params.get('tri') == 'amount' }}>Montant</option>
-      <option value="score" {{ 'selected' if params.get('tri') == 'score' }}>Pertinence</option>
-    </select>
-  </div>
-  {# Le champ cache precede la case : un navigateur n'envoie rien pour une case decochee. #}
-  <input type="hidden" name="ouverts" value="false">
-  <label class="check"><input type="checkbox" name="ouverts" value="true" {{ 'checked' if params.get('ouverts') == 'true' }}> Ouverts seulement</label>
-  <input type="hidden" name="pertinents" value="false">
-  <label class="check"><input type="checkbox" name="pertinents" value="true" {{ 'checked' if params.get('pertinents', 'true') == 'true' }}> Mon domaine</label>
-  <button class="btn" type="submit">Filtrer</button>
-  <a class="btn btn-light" href="/avis">Reinitialiser</a>
-</form>
+<div class="rd-controls">
+  <form class="ct-search rd-search-form" method="get" action="/avis" role="search">
+    {{ m.icon('search') }}
+    <input type="search" name="q" value="{{ params.get('q', '') }}" placeholder="Objet, référence, acheteur, ville…" aria-label="Rechercher">
+    {{ m.keep(params, ('q',)) }}
+    <button class="ct-btn ct-btn-dark" type="submit">Rechercher</button>
+  </form>
+</div>
 
-<div class="card">
-{% if page_data.items %}
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr><th>Objet</th><th>Acheteur</th><th>Categorie</th><th class="num">Estimation</th><th>Date limite</th><th>Statut</th><th class="num">Score</th></tr>
-    </thead>
-    <tbody>
-    {% for t in page_data.items %}
-      <tr>
-        <td style="max-width:420px">
-          <div class="cell-main"><a href="/avis/{{ t.id }}">{{ t.object or 'Objet non precise' }}</a></div>
-          <div class="cell-sub">{{ t.reference or '-' }}{% if t.procedure_type %} &middot; {{ t.procedure_type }}{% endif %}{% if t.execution_place %} &middot; {{ t.execution_place }}{% endif %}</div>
-          <div>
-            {% for f in t.families %}<span class="tag tag-primary" style="margin:1px 2px 1px 0">{{ f|famille }}</span>{% endfor %}
-            {% for k in t.matched_keywords[:4] %}<span class="kw">{{ k }}</span>{% endfor %}
-          </div>
-        </td>
-        <td>{{ t.buyer_raw or '-' }}{% if t.buyer_service %}<div class="cell-sub">{{ t.buyer_service }}</div>{% endif %}</td>
-        <td><span class="tag tag-muted">{{ t.category.value }}</span></td>
-        <td class="num">{{ m.amount(t.estimated_amount, t.currency) }}</td>
-        <td class="nowrap">{{ t.submission_deadline.strftime('%d/%m/%Y') if t.submission_deadline else '-' }} {{ m.deadline_tag(t) }}</td>
-        <td>{{ m.status_tag(t.status) }}</td>
-        <td class="num strong">{{ '%.0f'|format(t.match_score) }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<div class="rd-controls-2">
+  <div class="ct-tabs" role="tablist" aria-label="Catégorie">
+    <a class="ct-tab{{ ' on' if not params.get('categorie') }}" href="{{ qs(params, categorie=none) }}">Toutes</a>
+    {% for c in categories %}<a class="ct-tab{{ ' on' if params.get('categorie') == c }}" href="{{ qs(params, categorie=c) }}">{{ c }}</a>{% endfor %}
+  </div>
+  <div class="rd-controls" style="margin:0">
+    <div class="ct-seg" role="group" aria-label="Périmètre">
+      <a class="ct-seg-btn{{ ' on' if mine }}" href="{{ qs(params, pertinents=none) }}">Mon domaine</a>
+      <a class="ct-seg-btn{{ ' on' if not mine }}" href="{{ qs(params, pertinents='false') }}">Tous les avis</a>
+    </div>
+    <a class="ct-pill{{ ' on' if open_only }}" href="{{ qs(params, ouverts=none if open_only else 'true') }}">{% if open_only %}{{ m.icon('check') }}{% endif %}Ouverts seulement</a>
+    <form method="get" action="/avis">
+      {{ m.keep(params, ('tri',)) }}
+      <select class="ct-pill" name="tri" data-autosubmit aria-label="Trier">
+        <option value="recent" {{ 'selected' if tri == 'recent' }}>Plus récents</option>
+        <option value="deadline" {{ 'selected' if tri == 'deadline' }}>Date limite</option>
+        <option value="amount" {{ 'selected' if tri == 'amount' }}>Montant</option>
+        <option value="score" {{ 'selected' if tri == 'score' }}>Pertinence</option>
+      </select>
+      <noscript><button class="ct-btn sm" type="submit">Trier</button></noscript>
+    </form>
+    <details class="rd-more">
+      <summary class="ct-pill{{ ' on' if extra }}">{{ m.icon('filter') }} Filtres{% if extra %} <b>{{ extra|length }}</b>{% endif %}</summary>
+      <form class="rd-pop" method="get" action="/avis">
+        {{ m.keep(params, ('acheteur', 'statut', 'min_montant', 'max_montant', 'du', 'au')) }}
+        <div class="rd-field"><label for="f-acheteur">Acheteur</label><input class="rd-input" id="f-acheteur" name="acheteur" value="{{ params.get('acheteur', '') }}" placeholder="ex. commune de tanger"></div>
+        <div class="rd-field"><label for="f-statut">Statut</label>
+          <select class="rd-input" id="f-statut" name="statut">
+            <option value="">Tous</option>
+            {% for s, label in [('open', 'En cours'), ('closed', 'Clôturé'), ('awarded', 'Attribué'), ('cancelled', 'Annulé')] %}<option value="{{ s }}" {{ 'selected' if params.get('statut') == s }}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="rd-field-row">
+          <div class="rd-field"><label for="f-min">Estimation min.</label><input class="rd-input" id="f-min" type="number" step="1000" min="0" name="min_montant" value="{{ params.get('min_montant', '') }}"></div>
+          <div class="rd-field"><label for="f-max">Estimation max.</label><input class="rd-input" id="f-max" type="number" step="1000" min="0" name="max_montant" value="{{ params.get('max_montant', '') }}"></div>
+        </div>
+        <div class="rd-field-row">
+          <div class="rd-field"><label for="f-du">Publié du</label><input class="rd-input" id="f-du" type="date" name="du" value="{{ params.get('du', '') }}"></div>
+          <div class="rd-field"><label for="f-au">au</label><input class="rd-input" id="f-au" type="date" name="au" value="{{ params.get('au', '') }}"></div>
+        </div>
+        <div class="ct-faint" style="font-size:var(--ct-t-12)">Les filtres de montant ne s'appliquent qu'aux avis qui publient une estimation.</div>
+        <div class="rd-pop-foot">
+          <a class="ct-btn sm ghost" href="{{ qs(params, acheteur=none, statut=none, min_montant=none, max_montant=none, du=none, au=none) }}">Effacer</a>
+          <button class="ct-btn sm ct-btn-dark" type="submit">Appliquer</button>
+        </div>
+      </form>
+    </details>
+  </div>
 </div>
-{% else %}
-  {{ m.empty('Aucun avis ne correspond', 'Elargissez les filtres, ou decochez "Mon domaine" pour voir tous les avis collectes.') }}
-{% endif %}
+
+<div class="ct-card">
+  {% if page_data.items %}
+  <div class="rd-jobs">{% for t in page_data.items %}{{ m.tender_row(t) }}{% endfor %}</div>
+  {{ m.pager(page_data, params) }}
+  {% else %}
+  <div style="padding-top:var(--ct-6)">
+    {% call m.empty('Aucun avis ne correspond', "Élargissez les filtres, ou passez sur « Tous les avis » pour sortir de votre domaine de veille.") %}
+      <a class="ct-btn" href="/avis">Réinitialiser les filtres</a>
+    {% endcall %}
+  </div>
+  {% endif %}
 </div>
-{{ m.pagination(page_data, params) }}
 {% endblock %}

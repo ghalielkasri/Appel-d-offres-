@@ -9,7 +9,17 @@ from typing import Any
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Award, Buyer, SourceRun, Supplier, Tender, TenderStatus
+from app.models import (
+    BID_STAGE_LABELS,
+    Award,
+    Bid,
+    BidStage,
+    Buyer,
+    SourceRun,
+    Supplier,
+    Tender,
+    TenderStatus,
+)
 from app.normalize import normalize_text
 
 
@@ -496,6 +506,214 @@ def closing_soon(session: Session, days: int = 7, limit: int = 20) -> list[Tende
                 Tender.submission_deadline <= now + timedelta(days=days),
             )
             .order_by(Tender.submission_deadline.asc())
+            .limit(limit)
+        ).all()
+    )
+
+
+def open_relevant_value(session: Session) -> tuple[float, int, int]:
+    """Valeur estimee des consultations pertinentes encore ouvertes.
+
+    Renvoie (montant cumule, avis qui publient une estimation, avis ouverts
+    pertinents) : beaucoup d'avis n'annoncent pas de montant, et le chiffre
+    doit dire sur combien d'avis il repose.
+    """
+    now = datetime.now(timezone.utc)
+    open_clause = (
+        Tender.match_score > 0,
+        Tender.status == TenderStatus.OPEN,
+        or_(Tender.submission_deadline.is_(None), Tender.submission_deadline >= now),
+    )
+    row = session.execute(
+        select(
+            func.coalesce(func.sum(Tender.estimated_amount), 0.0),
+            func.count(Tender.estimated_amount),
+            func.count(Tender.id),
+        ).where(*open_clause)
+    ).one()
+    return float(row[0] or 0.0), int(row[1] or 0), int(row[2] or 0)
+
+
+# --------------------------------------------------------------------------- #
+# Suivi des candidatures
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(slots=True)
+class BidSummary:
+    active: int = 0
+    submitted: int = 0
+    won: int = 0
+    lost: int = 0
+    dropped: int = 0
+    #: Valeur estimee des avis suivis encore en cours (hors soumis sans estimation).
+    pipeline_value: float = 0.0
+    pipeline_priced: int = 0
+    won_amount: float = 0.0
+
+    @property
+    def decided(self) -> int:
+        return self.won + self.lost
+
+    @property
+    def win_rate(self) -> float | None:
+        """Taux de reussite sur les candidatures dont l'issue est connue, sinon rien."""
+        return 100.0 * self.won / self.decided if self.decided else None
+
+
+def bids_by_stage(session: Session) -> dict[BidStage, list[Bid]]:
+    """Toutes les candidatures suivies, regroupees par etape, echeance la plus proche d'abord."""
+    bids = list(
+        session.scalars(
+            select(Bid)
+            .join(Tender, Bid.tender_id == Tender.id)
+            .options(selectinload(Bid.tender))
+            .order_by(Tender.submission_deadline.asc().nullslast(), Bid.updated_at.desc())
+        ).all()
+    )
+    grouped: dict[BidStage, list[Bid]] = {stage: [] for stage in BidStage}
+    for bid in bids:
+        grouped[bid.stage].append(bid)
+    return grouped
+
+
+def bid_summary(session: Session, grouped: dict[BidStage, list[Bid]] | None = None) -> BidSummary:
+    grouped = grouped if grouped is not None else bids_by_stage(session)
+    result = BidSummary(
+        submitted=len(grouped[BidStage.SUBMITTED]),
+        won=len(grouped[BidStage.WON]),
+        lost=len(grouped[BidStage.LOST]),
+        dropped=len(grouped[BidStage.DROPPED]),
+    )
+    for stage, bids in grouped.items():
+        if stage.is_active:
+            result.active += len(bids)
+            for bid in bids:
+                amount = bid.offered_amount or bid.tender.estimated_amount
+                if amount:
+                    result.pipeline_value += amount
+                    result.pipeline_priced += 1
+        if stage is BidStage.WON:
+            result.won_amount = sum(
+                (b.offered_amount or b.tender.estimated_amount or 0.0) for b in bids
+            )
+    return result
+
+
+def active_bids_count(session: Session) -> int:
+    active = [s for s in BidStage if s.is_active]
+    return session.scalar(select(func.count(Bid.id)).where(Bid.stage.in_(active))) or 0
+
+
+def open_relevant_count(session: Session) -> int:
+    now = datetime.now(timezone.utc)
+    return session.scalar(
+        select(func.count(Tender.id)).where(
+            Tender.match_score > 0,
+            Tender.status == TenderStatus.OPEN,
+            or_(Tender.submission_deadline.is_(None), Tender.submission_deadline >= now),
+        )
+    ) or 0
+
+
+def bid_stage_options() -> list[tuple[str, str]]:
+    return [(stage.value, BID_STAGE_LABELS[stage]) for stage in BidStage]
+
+
+# --------------------------------------------------------------------------- #
+# Fiches acheteur et attributaire
+# --------------------------------------------------------------------------- #
+
+
+def family_mix(items: list[Any]) -> list[dict[str, Any]]:
+    """Familles d'equipement d'une liste d'avis ou d'attributions, les plus frequentes d'abord."""
+    tally: dict[str, dict[str, Any]] = {}
+    for item in items:
+        for family in item.families or []:
+            entry = tally.setdefault(family, {"family": family, "count": 0, "total": 0.0})
+            entry["count"] += 1
+            entry["total"] += getattr(item, "awarded_amount", None) or 0.0
+    return sorted(tally.values(), key=lambda e: (e["count"], e["total"]), reverse=True)
+
+
+def yearly_series(awards: list[Award]) -> list[dict[str, Any]]:
+    """Marches et montants par annee d'attribution, sans trou entre la premiere et la derniere."""
+    tally: dict[int, dict[str, Any]] = {}
+    for award in awards:
+        if not award.award_date:
+            continue
+        year = award.award_date.year
+        entry = tally.setdefault(year, {"label": str(year), "count": 0, "total": 0.0})
+        entry["count"] += 1
+        entry["total"] += award.awarded_amount or 0.0
+    if not tally:
+        return []
+    return [
+        tally.get(year, {"label": str(year), "count": 0, "total": 0.0})
+        for year in range(min(tally), max(tally) + 1)
+    ]
+
+
+@dataclass(slots=True)
+class Counterpart:
+    """Un acheteur vu depuis un attributaire, ou l'inverse."""
+
+    id: int | None
+    name: str
+    count: int
+    total: float
+    last: date | None
+
+
+def _counterparts(awards: list[Award], key: str) -> list[Counterpart]:
+    tally: dict[str, Counterpart] = {}
+    for award in awards:
+        if key == "buyer":
+            ident, name = award.buyer_id, award.buyer_raw
+        else:
+            ident = award.supplier_id
+            name = award.supplier.name if award.supplier else award.supplier_raw
+        if not name:
+            continue
+        entry = tally.setdefault(name, Counterpart(ident, name, 0, 0.0, None))
+        entry.count += 1
+        entry.total += award.awarded_amount or 0.0
+        if award.award_date and (entry.last is None or award.award_date > entry.last):
+            entry.last = award.award_date
+    return sorted(tally.values(), key=lambda c: (c.total, c.count), reverse=True)
+
+
+def supplier_buyers(awards: list[Award]) -> list[Counterpart]:
+    """Les acheteurs aupres desquels un attributaire gagne."""
+    return _counterparts(awards, "buyer")
+
+
+def buyer_suppliers(awards: list[Award]) -> list[Counterpart]:
+    """Les entreprises qui gagnent chez un acheteur."""
+    return _counterparts(awards, "supplier")
+
+
+def buyer_awards(session: Session, buyer_id: int) -> list[Award]:
+    return list(
+        session.scalars(
+            select(Award)
+            .options(selectinload(Award.supplier))
+            .where(Award.buyer_id == buyer_id)
+            .order_by(Award.award_date.desc().nullslast(), Award.id.desc())
+        ).all()
+    )
+
+
+def buyer_tenders(session: Session, buyer_id: int, limit: int = 20) -> list[Tender]:
+    """Les avis de cet acheteur, ouverts d'abord, puis les plus recents."""
+    return list(
+        session.scalars(
+            select(Tender)
+            .where(Tender.buyer_id == buyer_id)
+            .order_by(
+                (Tender.status == TenderStatus.OPEN).desc(),
+                Tender.submission_deadline.desc().nullslast(),
+            )
             .limit(limit)
         ).all()
     )

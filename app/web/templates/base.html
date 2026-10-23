@@ -1,34 +1,88 @@
+{% import "_macros.html" as m with context %}
+{%- set path = request.url.path -%}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{{ app_name }}{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <title>{% block title %}{{ app_name }}{% endblock %} · Radar</title>
+  {% if company_logo %}<link rel="icon" href="{{ company_logo }}">{% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..600&display=swap">
+  <link rel="stylesheet" href="{{ asset('contra-tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('radar.css') }}">
 </head>
 <body>
-<div class="layout">
-  <aside class="sidebar">
-    <div class="brand">{{ app_name }}</div>
-    <div class="brand-sub">Marches publics du Maroc</div>
-    <nav class="nav">
-      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Tableau de bord</a>
-      <a href="/recherche" class="{{ 'active' if request.url.path == '/recherche' }}">Recherche</a>
-      <div class="nav-group">Veille</div>
-      <a href="/avis" class="{{ 'active' if request.url.path == '/avis' }}">Appels d'offres</a>
-      <a href="/veille" class="{{ 'active' if request.url.path == '/veille' }}">Profils &amp; canaux</a>
-      <div class="nav-group">Historique</div>
-      <a href="/attributions" class="{{ 'active' if request.url.path == '/attributions' }}">Attributions</a>
-      <a href="/attributaires" class="{{ 'active' if request.url.path.startswith('/attributaires') }}">Attributaires</a>
-      <a href="/acheteurs" class="{{ 'active' if request.url.path == '/acheteurs' }}">Acheteurs</a>
-      <div class="nav-group">Donnees</div>
-      <a href="/exports" class="{{ 'active' if request.url.path == '/exports' }}">Exports</a>
-      <a href="/docs">API</a>
+{% macro nav_item(href, label, ico, on, count=none) -%}
+<a class="rd-nav-item{{ ' on' if on }}" href="{{ href }}"{% if on %} aria-current="page"{% endif %}>{{ m.icon(ico) }}<span>{{ label }}</span>{% if count %}<span class="rd-nav-num">{{ count }}</span>{% endif %}</a>
+{%- endmacro %}
+<div class="rd-app">
+  <aside class="rd-side" id="side">
+    <div class="rd-brand">Radar <span class="rd-brand-pill">Marchés</span></div>
+    <a class="ws-card" href="/profil">
+      <span class="ws-av">{% if company_logo %}<img src="{{ company_logo }}" alt="">{% else %}<span class="ws-av-in">{{ company_name|initiales }}</span>{% endif %}</span>
+      <span class="ws-name">{{ company_name }}</span>
+      <span class="ws-meta">Cuisine professionnelle · Maroc</span>
+    </a>
+    <nav class="rd-nav" aria-label="Navigation">
+      <div class="rd-nav-hd">Mon entreprise</div>
+      {{ nav_item('/', "Vue d'ensemble", 'home', path == '/') }}
+      {{ nav_item('/profil', 'Mon profil', 'suppliers', path == '/profil') }}
+      {{ nav_item('/candidatures', 'Candidatures', 'bids', path == '/candidatures', nav.bids) }}
+      <div class="rd-nav-hd">Marché</div>
+      {{ nav_item('/avis', "Appels d'offres", 'tenders', path.startswith('/avis'), nav.open) }}
+      {{ nav_item('/activite', 'Activité', 'pulse', path == '/activite') }}
+      {{ nav_item('/classement', 'Classement', 'trophy', path == '/classement') }}
+      {{ nav_item('/segments', 'Segments', 'pie', path == '/segments') }}
+      {{ nav_item('/concurrents', 'Concurrents', 'eye', path == '/concurrents' or path.startswith('/attributaires'), nav.watched) }}
+      <div class="rd-nav-hd">Historique</div>
+      {{ nav_item('/attributions', 'Attributions', 'award', path == '/attributions') }}
+      {{ nav_item('/acheteurs', 'Acheteurs', 'buyers', path.startswith('/acheteurs')) }}
+      {{ nav_item('/recherche', 'Recherche', 'search', path == '/recherche') }}
+      <div class="rd-nav-hd">Réglages</div>
+      {{ nav_item('/veille', 'Profils & canaux', 'profiles', path == '/veille') }}
+      {{ nav_item('/exports', 'Exports', 'download', path == '/exports') }}
+      {{ nav_item('/docs', 'API', 'code', false) }}
     </nav>
+    <div class="rd-side-foot">
+      <b>Veille automatique</b>
+      <span>Avis toutes les 30 min, attributions deux fois par jour. Version {{ version }}.</span>
+    </div>
   </aside>
-  <main class="main">
-    {% block content %}{% endblock %}
+
+  <main class="rd-main">
+    <header class="ct-top">
+      <div class="ct-top-in">
+        <div class="ct-top-l">
+          <button class="rd-menu" type="button" data-nav-toggle aria-label="Menu">{{ m.icon('menu') }}</button>
+          {% block top_left %}{% endblock %}
+        </div>
+        <div class="ct-top-r">
+          {% block top_right %}{% endblock %}
+          <button class="ct-pro" type="button" data-cmdk-open><span class="ct-pro-ico"></span><span class="ct-pro-t">Rechercher</span><kbd>⌘K</kbd></button>
+        </div>
+      </div>
+    </header>
+    {% if demo %}
+    <div class="rd-demo" role="note">{{ m.icon('info') }}<span><b>Données de démonstration.</b> Entreprises, montants et références sont fictifs ; les acheteurs sont de vraies institutions mais ces marchés n'existent pas. <code>radar demo --clear</code> les retire.</span></div>
+    {% endif %}
+    {% if flash %}
+    <div class="rd-flash"><div class="rd-banner" role="status">{{ m.icon('check') }}<span>{{ flash }}</span></div></div>
+    {% endif %}
+    <div class="ct-body">
+      {% block content %}{% endblock %}
+    </div>
   </main>
 </div>
+
+<div class="rd-cmdk" data-cmdk hidden>
+  <div class="rd-cmdk-box" role="dialog" aria-label="Recherche">
+    <label class="rd-cmdk-in">{{ m.icon('search') }}<input type="search" placeholder="Un marché, une entreprise, un acheteur…" autocomplete="off" data-cmdk-input><kbd>Échap</kbd></label>
+    <div class="rd-cmdk-list" data-cmdk-list><div class="rd-cmdk-empty">Tapez au moins deux lettres. Les accents sont inutiles.</div></div>
+    <div class="rd-cmdk-foot"><span>↑ ↓ pour choisir, Entrée pour ouvrir</span><span>Entrée sans choix : tous les résultats</span></div>
+  </div>
+</div>
+<script src="{{ asset('radar.js') }}" defer></script>
 </body>
 </html>

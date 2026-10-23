@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Segments{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Marché</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Segments</h1>{% endblock %}
+{% block top_right %}
+<div class="ct-seg rd-top-extra" role="group" aria-label="Période">
+  {% for key, p in PERIODS.items() %}<a class="ct-seg-btn{{ ' on' if period == key }}" href="{{ qs(params, periode=none if key == '12m' else key) }}">{{ p[0] }}</a>{% endfor %}
+</div>
+{% endblock %}
+{% block content %}
+<div class="ct-hello">
+  <div>
+    <h2>{{ segments|length }} segments</h2>
+    <p>{{ PERIODS[period][0] }} · le marché de la cuisine professionnelle par famille d'équipement · ouvrez un segment pour son classement.</p>
+  </div>
+  <div class="ct-stats">
+    <div class="ct-stat"><span class="ct-stat-v">{{ totals.amount|court }}<small>DH</small></span><span class="ct-stat-l">Adjugé</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ totals.wins }}</span><span class="ct-stat-l">Marchés</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ totals.companies }}</span><span class="ct-stat-l">Entreprises</span></div>
+    <a class="ct-stat" href="/avis?ouverts=true"><span class="ct-stat-v">{{ totals.open }}</span><span class="ct-stat-l">Avis ouverts</span></a>
+  </div>
+</div>
+
+{% if segments %}
+<section class="ct-card cc-share">
+  <div class="ct-card-head"><div><h2>Part du marché par segment</h2><p>{{ PERIODS[period][0] }} · montant adjugé ; un marché qui couvre deux familles compte dans chacune</p></div></div>
+  <div class="cc-share-body">
+    <div class="cc-stack">{% for s in segments %}<i style="flex:{{ '%.4f'|format(s.share) }};background:{{ s.color }}" title="{{ s.label }} · {{ '%.0f'|format(s.share) }} %"></i>{% endfor %}</div>
+    <div class="cc-legend">{% for s in segments %}<a class="cc-leg" href="/classement?famille={{ s.family }}{{ '&periode=' ~ period if period != '12m' }}"><i style="background:{{ s.color }}"></i>{{ s.label }}<em>{{ '%.0f'|format(s.share) if s.share >= 1 else '<1' }} %</em></a>{% endfor %}</div>
+  </div>
+</section>
+
+{% set max_share = segments[0].share or 1 %}
+<div class="cc-grid">
+  {% for s in segments %}
+  {%- set others = s.companies[1:] -%}
+  <article class="cc-card" style="--c:{{ s.color }}">
+    <div class="cc-head">
+      <div class="cc-name"><i></i><h3><a href="/classement?famille={{ s.family }}{{ '&periode=' ~ period if period != '12m' }}">{{ s.label }}</a></h3></div>
+      <div class="cc-pct">{{ '%.0f'|format(s.share) if s.share >= 1 else '<1' }}<small>%</small></div>
+    </div>
+    <p class="cc-sub">{{ s.companies|length }} entreprise(s) · part du montant adjugé</p>
+    <div class="ct-bar cc-bar"><i style="width:{{ [1.5, 100 * s.share / max_share]|max|round(1) }}%"></i></div>
+    <div class="cc-stats">
+      <div class="ct-kv"><span class="ct-kv-l">Adjugé</span><span class="ct-kv-v">{{ s.amount|court }} <small>DH</small></span></div>
+      <div class="ct-kv"><span class="ct-kv-l">Marchés</span><span class="ct-kv-v">{{ s.wins }}</span></div>
+      <div class="ct-kv"><span class="ct-kv-l">Avis ouverts</span><span class="ct-kv-v">{{ s.open_tenders }}</span></div>
+    </div>
+    {% if s.me %}<div class="cc-me">Vous êtes <b>#{{ s.me.rank }}</b> sur {{ s.companies|length }} · {{ '%.0f'|format(s.me.share) }} % du segment</div>
+    {% else %}<div class="cc-me none">{{ company_name }} n'a rien gagné dans ce segment sur la période</div>{% endif %}
+    <div class="cc-foot">
+      {% if s.leader %}
+      <a class="cc-leader" href="{{ m.company_href(s.leader.supplier_id) if s.leader.supplier_id else '#' }}">{{ m.logo(s.leader.name, 34) }}
+        <span class="cc-leader-t"><span class="ct-kv-l">Leader</span><b>{{ s.leader.name|nom }}</b><span>{{ s.leader.amount|court }} DH · {{ s.leader.wins }} marché(s)</span></span></a>
+      {% endif %}
+      {% if others %}<span class="ct-avstack" title="{{ others[:8] | map(attribute='name') | map('nom') | join(', ') }}">{% for o in others[:4] %}{{ m.logo(o.name, 26) }}{% endfor %}{% if others|length > 4 %}<span class="ct-avmore" style="--s:26px">+{{ others|length - 4 }}</span>{% endif %}</span>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="ct-card" style="padding-top:var(--ct-6)">{{ m.empty('Aucun segment sur la période', 'Les segments apparaissent avec les attributions de votre domaine.') }}</div>
+{% endif %}
+{% endblock %}

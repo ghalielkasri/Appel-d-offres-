@@ -1,155 +1,96 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
-{% block title %}Recherche - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Recherche{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Veille</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Recherche</h1>{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="ct-hello">
   <div>
-    <h1>Recherche</h1>
-    <p class="page-sub">Un seul champ pour les appels d'offres, les attributions, les entreprises et les acheteurs</p>
+    <h2>Recherche</h2>
+    <p>Un seul champ pour les appels d'offres, les attributions, les entreprises et les acheteurs.</p>
   </div>
 </div>
 
-<form class="filters" method="get">
-  <div class="field" style="flex:1">
-    <label for="q">Que cherchez-vous ?</label>
-    <input type="text" id="q" name="q" value="{{ q }}" autofocus
-           style="min-width:100%;font-size:15px;padding:10px 12px"
-           placeholder="materiel medical, groupe electrogene, equip maroc, commune de tanger...">
-  </div>
-  <button class="btn" type="submit" style="padding:10px 20px">Rechercher</button>
+<form class="rd-controls" method="get" action="/recherche" role="search">
+  <label class="ct-search" style="height:56px">
+    {{ m.icon('search') }}
+    <input type="search" name="q" value="{{ q }}" autofocus placeholder="matériel médical, four mixte, froidex, commune de tanger…" aria-label="Que cherchez-vous ?" style="font-size:var(--ct-t-16)">
+    <button class="ct-btn ct-btn-dark" type="submit" style="height:42px">Rechercher</button>
+  </label>
 </form>
 
 {% if not q %}
-<div class="card">
-  <h2>Comment chercher</h2>
-  <dl class="meta">
-    <dt>Accents</dt><dd>Inutile de les taper : « materiel » trouve « matériel », « tetouan » trouve « Tétouan ».</dd>
-    <dt>Plusieurs mots</dt><dd>Tous les mots doivent être présents : « materiel tetouan » ne ramène que les marchés de matériel à Tétouan.</dd>
-    <dt>Entreprise</dt><dd>Tapez une raison sociale pour voir tout ce qu'elle a remporté, quelle que soit la façon dont elle est écrite dans les avis.</dd>
-    <dt>Périmètre</dt><dd>La recherche porte sur <strong>tous</strong> les avis collectés, y compris hors de votre domaine de veille.</dd>
-  </dl>
+<div class="rd-grid-2" style="margin-top:var(--ct-6)">
+  {% for title, text in [
+    ('Sans accents', "« materiel » trouve « matériel », « tetouan » trouve « Tétouan »."),
+    ('Tous les mots', "« materiel tetouan » ne ramène que les marchés de matériel à Tétouan."),
+    ('Une entreprise', "Tapez une raison sociale pour voir son palmarès, quelle que soit son orthographe dans les avis."),
+    ('Hors de votre domaine', "La recherche porte sur tous les avis collectés, pas seulement ceux de vos profils."),
+  ] %}
+  <div class="ct-card" style="padding:var(--ct-5) var(--ct-6)"><div class="ct-kv"><span class="ct-kv-l">{{ title }}</span><span class="ct-muted">{{ text }}</span></div></div>
+  {% endfor %}
 </div>
-{% elif results.is_empty %}
-  <div class="card">
-    {{ m.empty('Aucun résultat pour « ' ~ q ~ ' »', 'Essayez un terme plus court, ou vérifiez que la collecte a déjà tourné.') }}
-  </div>
-{% else %}
+<p class="ct-faint" style="font-size:var(--ct-t-13);margin-top:var(--ct-5)">Astuce : <span class="rd-code">⌘K</span> ou <span class="rd-code">/</span> ouvre la recherche rapide depuis n'importe quelle page.</p>
 
-<p class="page-sub" style="margin-bottom:16px">
-  <strong>{{ results.total }}</strong> résultat(s) pour « {{ q }} » :
-  {{ results.tenders_total }} avis, {{ results.awards_total }} attribution(s),
-  {{ results.suppliers|length }} entreprise(s), {{ results.buyers|length }} acheteur(s)
-</p>
+{% elif results.is_empty %}
+<div class="ct-card" style="padding-top:var(--ct-6)">{{ m.empty('Aucun résultat pour « ' ~ q ~ ' »', 'Essayez un terme plus court ou la racine du mot (« medic » couvre « médical » et « médicaux »).') }}</div>
+
+{% else %}
+<div class="ct-tabs" style="margin-bottom:var(--ct-5)">
+  <span class="ct-tab on">Tout <em>{{ results.total }}</em></span>
+  {% if results.suppliers %}<a class="ct-tab" href="#entreprises">Entreprises <em>{{ results.suppliers|length }}</em></a>{% endif %}
+  {% if results.tenders %}<a class="ct-tab" href="#avis">Avis <em>{{ results.tenders_total }}</em></a>{% endif %}
+  {% if results.awards %}<a class="ct-tab" href="#attributions">Attributions <em>{{ results.awards_total }}</em></a>{% endif %}
+  {% if results.buyers %}<a class="ct-tab" href="#acheteurs">Acheteurs <em>{{ results.buyers|length }}</em></a>{% endif %}
+</div>
 
 {% if results.suppliers %}
-<div class="card">
-  <div class="card-head">
-    <h2>Entreprises ({{ results.suppliers|length }})</h2>
-    <a class="btn btn-light btn-sm" href="/attributaires?q={{ q|urlencode }}">Voir le classement</a>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Attributaire</th><th class="num">Marchés</th><th class="num">Montant total</th><th class="num">Moyen</th><th class="num">Acheteurs</th><th>Période</th></tr></thead>
-      <tbody>
-      {% for s in results.suppliers %}
-        <tr>
-          <td class="strong">{% if s.supplier_id %}<a href="/attributaires/{{ s.supplier_id }}">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}</td>
-          <td class="num">{{ s.awards_count }}</td>
-          <td class="num strong">{{ m.amount(s.total_amount) }}</td>
-          <td class="num">{{ m.amount(s.avg_amount) }}</td>
-          <td class="num">{{ s.buyers_count }}</td>
-          <td class="cell-sub nowrap">{{ s.first_award.strftime('%m/%Y') if s.first_award else '-' }} &rarr; {{ s.last_award.strftime('%m/%Y') if s.last_award else '-' }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<div class="ct-card" id="entreprises">
+  <div class="ct-card-head"><div><h2>Entreprises</h2><p>{{ results.suppliers|length }} attributaire(s)</p></div><a class="ct-btn sm" href="/classement?q={{ q|urlencode }}">Classement</a></div>
+  <table class="rd-table"><tbody>
+  {% for s in results.suppliers %}
+    <tr>
+      <td>{{ m.company(s.name, s.supplier_id, 36, s.awards_count ~ ' marché(s) · ' ~ s.buyers_count ~ ' acheteur(s) · ' ~ (s.first_award.strftime('%m/%Y') if s.first_award else '—') ~ ' → ' ~ (s.last_award.strftime('%m/%Y') if s.last_award else '—')) }}</td>
+      <td class="num"><span class="ct-n">{{ m.amount(s.total_amount) }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody></table>
 </div>
 {% endif %}
 
 {% if results.tenders %}
-<div class="card">
-  <div class="card-head">
-    <h2>Appels d'offres ({{ results.tenders_total }})</h2>
-    <a class="btn btn-light btn-sm" href="/avis?q={{ q|urlencode }}&pertinents=false">Tout voir avec filtres</a>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Objet</th><th>Acheteur</th><th class="num">Estimation</th><th>Date limite</th><th>Statut</th></tr></thead>
-      <tbody>
-      {% for t in results.tenders %}
-        <tr>
-          <td style="max-width:400px">
-            <div class="cell-main"><a href="/avis/{{ t.id }}">{{ t.object or 'Objet non précisé' }}</a></div>
-            <div class="cell-sub">{{ t.reference or '-' }} &middot; {{ t.category.value }}{% if t.execution_place %} &middot; {{ t.execution_place }}{% endif %}</div>
-          </td>
-          <td>{{ t.buyer_raw or '-' }}</td>
-          <td class="num">{{ m.amount(t.estimated_amount, t.currency) }}</td>
-          <td class="nowrap">{{ t.submission_deadline.strftime('%d/%m/%Y') if t.submission_deadline else '-' }} {{ m.deadline_tag(t) }}</td>
-          <td>{{ m.status_tag(t.status) }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% if results.tenders_total > results.tenders|length %}
-  <p class="cell-sub" style="margin-bottom:0">{{ results.tenders|length }} premiers affichés sur {{ results.tenders_total }}.</p>
-  {% endif %}
+<div class="ct-card" id="avis">
+  <div class="ct-card-head"><div><h2>Appels d'offres</h2><p>{{ results.tenders|length }} affiché(s) sur {{ results.tenders_total }}</p></div><a class="ct-btn sm" href="/avis?q={{ q|urlencode }}&pertinents=false">Tout voir</a></div>
+  <div class="rd-jobs">{% for t in results.tenders %}{{ m.tender_row(t) }}{% endfor %}</div>
 </div>
 {% endif %}
 
 {% if results.awards %}
-<div class="card">
-  <div class="card-head">
-    <h2>Attributions ({{ results.awards_total }})</h2>
-    <a class="btn btn-light btn-sm" href="/attributions?q={{ q|urlencode }}">Tout voir avec filtres</a>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Objet</th><th>Acheteur</th><th>Attributaire</th><th class="num">Montant adjugé</th><th class="num">Concur.</th><th>Date</th></tr></thead>
-      <tbody>
-      {% for a in results.awards %}
-        <tr>
-          <td style="max-width:340px">
-            <div class="cell-main">{% if a.consultation_url %}<a href="{{ a.consultation_url }}" target="_blank" rel="noopener">{{ a.object or 'Objet non précisé' }}</a>{% else %}{{ a.object or 'Objet non précisé' }}{% endif %}</div>
-            <div class="cell-sub">{{ a.reference or '-' }}{% if a.lot_number %} &middot; lot {{ a.lot_number }}{% endif %}</div>
-          </td>
-          <td>{{ a.buyer_raw or '-' }}</td>
-          <td class="strong">{% if a.supplier %}<a href="/attributaires/{{ a.supplier.id }}">{{ a.supplier.name }}</a>{% else %}{{ a.supplier_raw or '-' }}{% endif %}</td>
-          <td class="num strong">{{ m.amount(a.awarded_amount, a.currency) }}{% if a.amount_includes_tax is not none %}<div class="cell-sub">{{ 'TTC' if a.amount_includes_tax else 'HT' }}</div>{% endif %}</td>
-          <td class="num">{{ a.bids_count if a.bids_count is not none else '-' }}</td>
-          <td class="nowrap">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '-' }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% if results.awards_total > results.awards|length %}
-  <p class="cell-sub" style="margin-bottom:0">{{ results.awards|length }} premières affichées sur {{ results.awards_total }}, les plus gros montants d'abord.</p>
-  {% endif %}
+<div class="ct-card" id="attributions">
+  <div class="ct-card-head"><div><h2>Attributions</h2><p>{{ results.awards|length }} affichée(s) sur {{ results.awards_total }}, les plus gros montants d'abord</p></div><a class="ct-btn sm" href="/attributions?q={{ q|urlencode }}">Tout voir</a></div>
+  <table class="rd-table"><tbody>
+  {% for a in results.awards %}
+    <tr>
+      <td style="max-width:420px"><span class="rd-t1">{{ a.object or 'Objet non précisé' }}</span><span class="rd-t2">{{ m.buyer_link(a.buyer_raw, a.buyer_id) }} · {{ a.award_date.strftime('%m/%Y') if a.award_date else 'date inconnue' }}</span></td>
+      <td class="hide-sm">{{ m.supplier_link(a) }}</td>
+      <td class="num"><span class="ct-n">{{ m.amount(a.awarded_amount, a.currency) }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody></table>
 </div>
 {% endif %}
 
 {% if results.buyers %}
-<div class="card">
-  <h2>Acheteurs ({{ results.buyers|length }})</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Acheteur</th><th class="num">Marchés attribués</th><th class="num">Montant total</th><th class="num">Fournisseurs</th></tr></thead>
-      <tbody>
-      {% for b in results.buyers %}
-        <tr>
-          <td class="strong"><a href="/attributions?acheteur={{ b.name|urlencode }}">{{ b.name }}</a></td>
-          <td class="num">{{ b.awards_count }}</td>
-          <td class="num strong">{{ m.amount(b.total_amount) }}</td>
-          <td class="num">{{ b.suppliers_count }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<div class="ct-card" id="acheteurs">
+  <div class="ct-card-head"><div><h2>Acheteurs</h2><p>{{ results.buyers|length }} acheteur(s)</p></div></div>
+  <table class="rd-table"><tbody>
+  {% for b in results.buyers %}
+    <tr>
+      <td><div class="rd-who">{{ m.logo(b.name, 36) }}<span><span class="rd-t1">{{ m.buyer_link(b.name, b.buyer_id) }}</span><span class="rd-t2">{{ b.awards_count }} marché(s) · {{ b.suppliers_count }} fournisseur(s)</span></span></div></td>
+      <td class="num"><span class="ct-n">{{ m.amount(b.total_amount) }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody></table>
 </div>
 {% endif %}
-
 {% endif %}
 {% endblock %}

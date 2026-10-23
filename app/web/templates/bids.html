@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Candidatures{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Veille</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Candidatures</h1>{% endblock %}
+{% block top_right %}<a class="ct-btn rd-top-extra" href="/avis?ouverts=true&tri=deadline">{{ m.icon('plus') }} Choisir un avis</a>{% endblock %}
+{% block content %}
+{%- set active_stages = stages | selectattr('is_active') | list -%}
+{%- set closed_stages = stages | rejectattr('is_active') | list -%}
+<div class="ct-hello">
+  <div>
+    <h2>Candidatures</h2>
+    <p>Chaque avis retenu par l'équipe, de la décision go / no-go jusqu'à l'issue.</p>
+  </div>
+  <div class="ct-stats">
+    <div class="ct-stat"><span class="ct-stat-v">{{ summary.active }}</span><span class="ct-stat-l">En cours</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ summary.pipeline_value|court }}{% if summary.pipeline_value %}<small>DH</small>{% endif %}</span><span class="ct-stat-l">En jeu{% if summary.pipeline_priced < summary.active %} ({{ summary.pipeline_priced }} chiffrées){% endif %}</span></div>
+    <div class="ct-stat pos"><span class="ct-stat-v">{{ summary.won }}</span><span class="ct-stat-l">Gagnées</span></div>
+    <div class="ct-stat{{ ' dim' if summary.win_rate is none }}"><span class="ct-stat-v">{{ '%.0f'|format(summary.win_rate) ~ ' %' if summary.win_rate is not none else '—' }}</span><span class="ct-stat-l">Taux de réussite</span></div>
+  </div>
+</div>
+
+{% if not summary.active and not summary.decided and not summary.dropped %}
+<div class="ct-card" style="padding-top:var(--ct-6)">
+  {% call m.empty('Aucune candidature suivie', "Ouvrez un appel d'offres et cliquez « Suivre cette candidature » : il apparaîtra ici, et vous pourrez le faire avancer d'étape en étape.") %}
+    <a class="ct-btn ct-btn-dark" href="/avis?ouverts=true&tri=deadline">Voir les avis ouverts</a>
+  {% endcall %}
+</div>
+{% else %}
+
+<div class="rd-board">
+  {% for stage in active_stages %}
+  {%- set prev = active_stages[loop.index0 - 1] if not loop.first else none -%}
+  {%- set nxt = active_stages[loop.index0 + 1] if not loop.last else none -%}
+  <section class="rd-col" id="etape-{{ stage.value }}" aria-label="{{ stage.label }}">
+    <div class="rd-col-h">{{ stage.label }}<span>{{ grouped[stage]|length }}</span></div>
+    {% for bid in grouped[stage] %}
+    {%- set t = bid.tender -%}
+    <article class="rd-bid">
+      <div class="rd-bid-co">{{ m.logo(t.buyer_raw or t.reference, 20) }}<span>{{ t.buyer_raw or 'Acheteur non précisé' }}</span></div>
+      <a class="rd-bid-t" href="/avis/{{ t.id }}#suivi">{{ (t.object or 'Objet non précisé')|truncate(90) }}</a>
+      <div class="rd-chips">{{ m.deadline_chip(t) }}{% for f in t.families[:1] %}<span class="ct-chip accent">{{ f|famille }}</span>{% endfor %}</div>
+      {% if bid.note %}<div class="rd-bid-note">{{ bid.note }}</div>{% endif %}
+      <div class="rd-bid-f">
+        <span>{% if bid.offered_amount %}<b>{{ bid.offered_amount|court }} DH</b> <span class="ct-faint" style="font-size:var(--ct-t-12)">offre</span>{% elif t.estimated_amount %}<b>{{ t.estimated_amount|court }} DH</b> <span class="ct-faint" style="font-size:var(--ct-t-12)">estim.</span>{% else %}<span class="ct-faint" style="font-size:var(--ct-t-12)">sans montant</span>{% endif %}</span>
+        <div class="rd-bid-mv">
+          {% if prev %}<form method="post" action="/avis/{{ t.id }}/suivi"><input type="hidden" name="stage" value="{{ prev.value }}"><input type="hidden" name="next" value="/candidatures#etape-{{ prev.value }}"><button type="submit" title="Revenir à « {{ prev.label }} »" aria-label="Revenir à {{ prev.label }}">{{ m.icon('left') }}</button></form>{% endif %}
+          {% if nxt %}<form method="post" action="/avis/{{ t.id }}/suivi"><input type="hidden" name="stage" value="{{ nxt.value }}"><input type="hidden" name="next" value="/candidatures#etape-{{ nxt.value }}"><button type="submit" title="Passer à « {{ nxt.label }} »" aria-label="Passer à {{ nxt.label }}">{{ m.icon('right') }}</button></form>
+          {% else %}
+          <form method="post" action="/avis/{{ t.id }}/suivi"><input type="hidden" name="stage" value="won"><input type="hidden" name="next" value="/candidatures#issues"><button type="submit" title="Marquer gagnée" aria-label="Marquer gagnée">{{ m.icon('check') }}</button></form>
+          <form method="post" action="/avis/{{ t.id }}/suivi"><input type="hidden" name="stage" value="lost"><input type="hidden" name="next" value="/candidatures#issues"><button type="submit" title="Marquer perdue" aria-label="Marquer perdue">{{ m.icon('x') }}</button></form>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+    {% else %}
+    <div class="rd-col-empty">Aucune candidature à cette étape</div>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+
+<div class="ct-section" id="issues"><div><h3>Issues</h3><p>Candidatures gagnées, perdues ou abandonnées</p></div></div>
+<div class="ct-card">
+  {%- set done = [] -%}
+  {%- for stage in closed_stages %}{% for b in grouped[stage] %}{% set _ = done.append(b) %}{% endfor %}{% endfor -%}
+  {% if done %}
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th>Avis</th><th>Issue</th><th class="num">Montant</th><th class="hide-sm">Note</th><th class="num hide-sm">Mise à jour</th></tr></thead>
+    <tbody>
+    {% for bid in done %}
+      <tr>
+        <td style="max-width:380px"><div class="rd-who">{{ m.logo(bid.tender.buyer_raw or bid.tender.reference, 32) }}<span><a class="rd-t1" href="/avis/{{ bid.tender.id }}#suivi">{{ bid.tender.object or 'Objet non précisé' }}</a><span class="rd-t2">{{ bid.tender.buyer_raw or '—' }}</span></span></div></td>
+        <td>
+          {{ m.stage_chip(bid.stage) }}
+          {%- set winner = bid.tender.awards | first if bid.tender.awards else none -%}
+          {% if bid.stage.value == 'lost' and winner %}
+          <span class="rd-t2">face à {{ m.supplier_link(winner) }} · {{ winner.awarded_amount|court }} DH{% if bid.offered_amount and winner.awarded_amount %}, votre offre {{ '%+.0f'|format(100 * (bid.offered_amount - winner.awarded_amount) / winner.awarded_amount) }} %{% endif %}</span>
+          {% endif %}
+        </td>
+        <td class="num"><span class="ct-n">{{ m.amount(bid.offered_amount or bid.tender.estimated_amount) }}</span>{% if not bid.offered_amount and bid.tender.estimated_amount %}<span class="rd-t2">estimation</span>{% endif %}</td>
+        <td class="hide-sm ct-muted" style="font-size:var(--ct-t-13);max-width:320px">{{ (bid.note or '—')|truncate(120) }}</td>
+        <td class="num hide-sm ct-faint">{{ bid.updated_at.strftime('%d/%m/%Y') }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding-top:var(--ct-6)">{{ m.empty('Aucune issue pour le moment', "Une candidature soumise passe ici quand vous la marquez gagnée ou perdue.") }}</div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

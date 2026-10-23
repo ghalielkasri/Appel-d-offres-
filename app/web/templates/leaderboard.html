@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Classement{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Marché</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Classement</h1>{% endblock %}
+{% block top_right %}
+<div class="ct-seg rd-top-extra" role="group" aria-label="Période">
+  {% for key, p in PERIODS.items() %}<a class="ct-seg-btn{{ ' on' if period == key }}" href="{{ qs(params, periode=none if key == '12m' else key) }}">{{ p[0] }}</a>{% endfor %}
+</div>
+{% endblock %}
+{% block content %}
+{%- set here = request.url.path ~ qs(params) -%}
+<div class="ct-hello">
+  <div>
+    <h2>{{ 'Classement ' ~ (family|famille) if family else 'Classement du marché' }}</h2>
+    <p>{{ rows|length }} entreprise(s) · {{ PERIODS[period][0]|lower }} · par montant adjugé, évolution comparée à la période précédente.</p>
+  </div>
+  <div class="ct-stats">
+    <div class="ct-stat"><span class="ct-stat-v">{{ total|court }}<small>DH</small></span><span class="ct-stat-l">Adjugé</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ rows | sum(attribute='wins') }}</span><span class="ct-stat-l">Marchés</span></div>
+    <a class="ct-stat" href="/profil"><span class="ct-stat-v">{{ '#' ~ my_row.rank if my_row else '—' }}</span><span class="ct-stat-l">Votre rang</span></a>
+  </div>
+</div>
+
+<div class="rd-controls-2">
+  <div class="ct-tabs" aria-label="Segment">
+    <a class="ct-tab{{ ' on' if not family }}" href="{{ qs(params, famille=none) }}">Tous les segments</a>
+    {% for f in FAMILIES %}<a class="ct-tab{{ ' on' if family == f }}" href="{{ qs(params, famille=f) }}">{{ f|famille }}</a>{% endfor %}
+  </div>
+  <form class="ct-search sm" method="get" action="/classement" role="search">
+    {{ m.icon('search') }}<input type="search" name="q" value="{{ q }}" placeholder="Une entreprise" aria-label="Chercher une entreprise">{{ m.keep(params, ('q',)) }}
+  </form>
+</div>
+
+{% if rows and not q %}
+<div class="rd-grid-3" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:var(--ct-6)">
+  {% for title, r, value, unit in [
+    ('Plus gros montant', leaders.amount, leaders.amount.amount|court if leaders.amount else '—', 'DH'),
+    ('Plus de marchés', leaders.wins, leaders.wins.wins if leaders.wins else '—', 'marchés'),
+    ("Plus d'acheteurs", leaders.buyers, leaders.buyers.buyers_count if leaders.buyers else '—', 'acheteurs'),
+    ('Meilleure progression', leaders.momentum, ('+' ~ leaders.momentum.delta) if leaders.momentum else '—', 'places'),
+  ] %}
+  <a class="ct-card rd-leader" href="{{ m.company_href(r.supplier_id) if r and r.supplier_id else '#' }}">
+    <span class="rd-leader-h">{{ title }}</span>
+    {% if r %}{{ m.company(r.name, none, 40, '#' ~ r.rank ~ ' du classement') }}{% else %}<span class="ct-faint">Pas assez d'historique</span>{% endif %}
+    <span class="rd-leader-v">{{ value }}<span class="rd-cur" style="font-size:var(--ct-t-13)">{{ unit }}</span></span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="ct-card">
+  {% if rows %}
+  {% set top = rows[0].amount or 1 %}
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th class="rank">#</th><th class="hide-sm"></th><th>Entreprise</th><th class="num">Marchés</th><th class="num">Montant</th><th class="hide-sm">Part</th><th class="hide-sm">12 mois</th><th class="num hide-sm">Concur. moy.</th><th class="num"></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="{{ 'is-me' if r.is_me }}">
+        <td class="rank">{{ r.rank }}</td>
+        <td class="hide-sm" style="width:64px">{{ m.delta(r.delta) if period != 'tout' }}</td>
+        <td>{{ m.company(r.name, r.supplier_id, 40, r.buyers_count ~ ' acheteur(s)' ~ (' · ' ~ (r.top_family|famille) if r.top_family else '') ~ (' · dernier ' ~ r.last_win.strftime('%m/%Y') if r.last_win else '')) }}</td>
+        <td class="num">{{ r.wins }}</td>
+        <td class="num"><span class="ct-n">{{ r.amount|court }}</span><span class="rd-cur">DH</span></td>
+        <td class="hide-sm" style="min-width:150px"><div style="display:flex;align-items:center;gap:var(--ct-2)"><div class="ct-bar" style="flex:1"><i style="width:{{ [1.5, 100 * r.amount / top]|max|round(1) }}%"></i></div><span class="ct-muted" style="font-size:var(--ct-t-12);width:44px;text-align:right">{{ '%.1f'|format(r.share) }} %</span></div></td>
+        <td class="hide-sm">{{ m.spark(sparks[r.key]) }}</td>
+        <td class="num hide-sm">{{ '%.1f'|format(r.avg_bids) if r.avg_bids else '—' }}</td>
+        <td class="num">{{ m.follow(r.supplier_id, here) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="ct-card-foot">La part se calcule sur le montant adjugé {{ 'dans ce segment' if family else 'dans votre domaine' }}. La courbe montre les 12 derniers mois de la période, mois par mois.</div>
+  {% else %}
+  <div style="padding-top:var(--ct-6)">{{ m.empty('Aucune entreprise ' ~ ('pour « ' ~ q ~ ' »' if q else 'sur cette période'), "Élargissez la période ou changez de segment.") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

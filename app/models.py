@@ -155,6 +155,9 @@ class Tender(Base):
     documents: Mapped[list["TenderDocument"]] = relationship(
         back_populates="tender", cascade="all, delete-orphan"
     )
+    bid: Mapped["Bid | None"] = relationship(
+        back_populates="tender", cascade="all, delete-orphan", uselist=False
+    )
 
     @property
     def days_left(self) -> int | None:
@@ -331,6 +334,84 @@ class WatchProfile(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<WatchProfile {self.name!r} active={self.active}>"
+
+
+class BidStage(str, enum.Enum):
+    """Ou en est l'equipe sur un avis : de la decision a l'issue."""
+
+    REVIEW = "review"            # a etudier
+    GO = "go"                    # on y va
+    PREPARING = "preparing"      # offre en preparation
+    SUBMITTED = "submitted"      # offre deposee
+    WON = "won"
+    LOST = "lost"
+    DROPPED = "dropped"          # abandonne (no-go)
+
+    @property
+    def label(self) -> str:
+        return BID_STAGE_LABELS[self]
+
+    @property
+    def is_decided(self) -> bool:
+        return self in (BidStage.WON, BidStage.LOST)
+
+    @property
+    def is_active(self) -> bool:
+        return self in (BidStage.REVIEW, BidStage.GO, BidStage.PREPARING, BidStage.SUBMITTED)
+
+
+BID_STAGE_LABELS = {
+    BidStage.REVIEW: "À étudier",
+    BidStage.GO: "Go",
+    BidStage.PREPARING: "En préparation",
+    BidStage.SUBMITTED: "Soumis",
+    BidStage.WON: "Gagné",
+    BidStage.LOST: "Perdu",
+    BidStage.DROPPED: "Abandonné",
+}
+
+#: Le chemin normal d'une candidature, dans l'ordre du stepper.
+BID_PATH = [BidStage.REVIEW, BidStage.GO, BidStage.PREPARING, BidStage.SUBMITTED]
+
+
+class Bid(Base):
+    """Suivi d'une candidature : la decision de l'equipe sur un avis, et son issue.
+
+    Un avis a au plus un suivi. Les avis sans suivi restent dans la veille ;
+    le suivi commence quand l'equipe decide de les etudier.
+    """
+
+    __tablename__ = "bids"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tender_id: Mapped[int] = mapped_column(ForeignKey("tenders.id"), unique=True, index=True)
+    stage: Mapped[BidStage] = mapped_column(
+        Enum(BidStage, native_enum=False, length=32), default=BidStage.REVIEW, index=True
+    )
+    #: Montant de l'offre deposee, quand elle est connue.
+    offered_amount: Mapped[float | None] = mapped_column(Float)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    tender: Mapped[Tender] = relationship(back_populates="bid")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Bid tender={self.tender_id} {self.stage.value}>"
+
+
+class WatchedSupplier(Base):
+    """Un concurrent que l'entreprise suit de pres."""
+
+    __tablename__ = "watched_suppliers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    supplier: Mapped[Supplier] = relationship()
 
 
 class NotificationLog(Base):

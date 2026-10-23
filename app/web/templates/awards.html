@@ -1,92 +1,88 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
-{% block title %}Attributions - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Attributions{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Historique</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Attributions</h1>{% endblock %}
+{% block top_right %}
+<a class="ct-btn rd-top-extra" href="/export/attributions.csv{{ qs(params) }}">{{ m.icon('download') }} CSV</a>
+<a class="ct-btn rd-top-extra" href="/export/attributions.xlsx{{ qs(params) }}">Excel</a>
+{% endblock %}
 {% block content %}
-<div class="page-head">
+{%- set tri = params.get('tri', 'recent') -%}
+{%- set extra = [] -%}
+{%- for k in ['attributaire', 'acheteur', 'du', 'au'] if params.get(k) %}{% set _ = extra.append(k) %}{% endfor -%}
+<div class="ct-hello">
   <div>
-    <h1>Historique des attributions</h1>
-    <p class="page-sub">{{ page_data.total }} marche(s) attribue(s) : qui a gagne, et pour quel montant</p>
-  </div>
-  <div class="btn-row">
-    <a class="btn btn-light" href="/export/attributions.csv?{{ request.url.query }}">CSV</a>
-    <a class="btn btn-light" href="/export/attributions.xlsx?{{ request.url.query }}">Excel</a>
+    <h2>Historique des attributions</h2>
+    <p>{{ page_data.total }} marché(s) attribué(s) : qui a gagné, pour quel montant, face à combien de concurrents.</p>
   </div>
 </div>
 
-<form class="filters" method="get">
-  <div class="field field-wide">
-    <label for="q">Recherche</label>
-    <input type="text" id="q" name="q" value="{{ params.get('q', '') }}" placeholder="objet, reference, attributaire, acheteur">
-  </div>
-  <div class="field">
-    <label for="attributaire">Attributaire</label>
-    <input type="text" id="attributaire" name="attributaire" value="{{ params.get('attributaire', '') }}">
-  </div>
-  <div class="field">
-    <label for="acheteur">Acheteur</label>
-    <input type="text" id="acheteur" name="acheteur" value="{{ params.get('acheteur', '') }}">
-  </div>
-  <div class="field">
-    <label for="categorie">Categorie</label>
-    <select id="categorie" name="categorie">
-      <option value="">Toutes</option>
-      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if params.get('categorie') == c }}>{{ c }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="field">
-    <label for="du">Attribue du</label>
-    <input type="date" id="du" name="du" value="{{ params.get('du', '') }}">
-  </div>
-  <div class="field">
-    <label for="au">au</label>
-    <input type="date" id="au" name="au" value="{{ params.get('au', '') }}">
-  </div>
-  <div class="field">
-    <label for="tri">Trier par</label>
-    <select id="tri" name="tri">
-      <option value="recent" {{ 'selected' if params.get('tri', 'recent') == 'recent' }}>Plus recentes</option>
-      <option value="amount" {{ 'selected' if params.get('tri') == 'amount' }}>Montant</option>
-      <option value="supplier" {{ 'selected' if params.get('tri') == 'supplier' }}>Attributaire</option>
-    </select>
-  </div>
-  <button class="btn" type="submit">Filtrer</button>
-  <a class="btn btn-light" href="/attributions">Reinitialiser</a>
-</form>
+<div class="rd-controls">
+  <form class="ct-search rd-search-form" method="get" action="/attributions" role="search">
+    {{ m.icon('search') }}
+    <input type="search" name="q" value="{{ params.get('q', '') }}" placeholder="Objet, référence, attributaire, acheteur…" aria-label="Rechercher">
+    {{ m.keep(params, ('q',)) }}
+    <button class="ct-btn ct-btn-dark" type="submit">Rechercher</button>
+  </form>
+</div>
 
-<div class="card">
-{% if page_data.items %}
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr><th>Objet</th><th>Acheteur</th><th>Attributaire</th><th class="num">Montant adjuge</th><th class="num">Concurrents</th><th>Date</th></tr>
-    </thead>
+<div class="rd-controls-2">
+  <div class="ct-tabs" aria-label="Catégorie">
+    <a class="ct-tab{{ ' on' if not params.get('categorie') }}" href="{{ qs(params, categorie=none) }}">Toutes</a>
+    {% for c in categories %}<a class="ct-tab{{ ' on' if params.get('categorie') == c }}" href="{{ qs(params, categorie=c) }}">{{ c }}</a>{% endfor %}
+  </div>
+  <div class="rd-controls" style="margin:0">
+    <div class="ct-seg" role="group" aria-label="Tri">
+      <a class="ct-seg-btn{{ ' on' if tri == 'recent' }}" href="{{ qs(params, tri=none) }}">Récentes</a>
+      <a class="ct-seg-btn{{ ' on' if tri == 'amount' }}" href="{{ qs(params, tri='amount') }}">Montant</a>
+      <a class="ct-seg-btn{{ ' on' if tri == 'supplier' }}" href="{{ qs(params, tri='supplier') }}">Attributaire</a>
+    </div>
+    <details class="rd-more">
+      <summary class="ct-pill{{ ' on' if extra }}">{{ m.icon('filter') }} Filtres{% if extra %} <b>{{ extra|length }}</b>{% endif %}</summary>
+      <form class="rd-pop" method="get" action="/attributions">
+        {{ m.keep(params, ('attributaire', 'acheteur', 'du', 'au')) }}
+        <div class="rd-field"><label for="f-att">Attributaire</label><input class="rd-input" id="f-att" name="attributaire" value="{{ params.get('attributaire', '') }}"></div>
+        <div class="rd-field"><label for="f-ach">Acheteur</label><input class="rd-input" id="f-ach" name="acheteur" value="{{ params.get('acheteur', '') }}"></div>
+        <div class="rd-field-row">
+          <div class="rd-field"><label for="f-du">Attribué du</label><input class="rd-input" id="f-du" type="date" name="du" value="{{ params.get('du', '') }}"></div>
+          <div class="rd-field"><label for="f-au">au</label><input class="rd-input" id="f-au" type="date" name="au" value="{{ params.get('au', '') }}"></div>
+        </div>
+        <div class="rd-pop-foot">
+          <a class="ct-btn sm ghost" href="{{ qs(params, attributaire=none, acheteur=none, du=none, au=none) }}">Effacer</a>
+          <button class="ct-btn sm ct-btn-dark" type="submit">Appliquer</button>
+        </div>
+      </form>
+    </details>
+  </div>
+</div>
+
+<div class="ct-card">
+  {% if page_data.items %}
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th>Marché</th><th>Attributaire</th><th class="num">Adjugé</th><th class="num hide-sm">Concurrents</th><th class="num hide-sm">Date</th></tr></thead>
     <tbody>
     {% for a in page_data.items %}
       <tr>
-        <td style="max-width:380px">
-          <div class="cell-main">{% if a.consultation_url %}<a href="{{ a.consultation_url }}" target="_blank" rel="noopener">{{ a.object or 'Objet non precise' }}</a>{% else %}{{ a.object or 'Objet non precise' }}{% endif %}</div>
-          <div class="cell-sub">{{ a.reference or '-' }}{% if a.lot_number %} &middot; lot {{ a.lot_number }}{% endif %} &middot; {{ a.category.value }}</div>
+        <td style="max-width:420px">
+          {% if a.consultation_url %}<a class="rd-t1" href="{{ a.consultation_url }}" target="_blank" rel="noopener">{{ a.object or 'Objet non précisé' }}</a>{% else %}<span class="rd-t1">{{ a.object or 'Objet non précisé' }}</span>{% endif %}
+          <span class="rd-t2">{{ m.buyer_link(a.buyer_raw, a.buyer_id) }} · {{ a.reference or 'sans référence' }}{% if a.lot_number %} · lot {{ a.lot_number }}{% endif %}</span>
         </td>
-        <td>{{ a.buyer_raw or '-' }}</td>
-        <td class="strong">{% if a.supplier %}<a href="/attributaires/{{ a.supplier.id }}">{{ a.supplier.name }}</a>{% else %}{{ a.supplier_raw or '-' }}{% endif %}</td>
-        <td class="num strong">
-          {{ m.amount(a.awarded_amount, a.currency) }}
-          {% if a.amount_includes_tax is not none %}<div class="cell-sub">{{ 'TTC' if a.amount_includes_tax else 'HT' }}</div>{% endif %}
-          {% if a.estimated_amount and a.awarded_amount %}
-            {% set ecart = 100 * (a.awarded_amount - a.estimated_amount) / a.estimated_amount %}
-            <div class="cell-sub">{{ '%+.1f'|format(ecart) }}% vs estimation</div>
-          {% endif %}
+        <td><div class="rd-who">{{ m.logo(a.supplier.name if a.supplier else a.supplier_raw, 32) }}<span>{{ m.supplier_link(a) }}</span></div></td>
+        <td class="num">
+          <span class="ct-n">{{ m.amount(a.awarded_amount, a.currency) }}</span>
+          <span class="rd-t2">{% if a.amount_includes_tax is not none %}{{ 'TTC' if a.amount_includes_tax else 'HT' }}{% endif %}{% if a.estimated_amount and a.awarded_amount %} · {{ '%+.1f'|format(100 * (a.awarded_amount - a.estimated_amount) / a.estimated_amount) }} % vs estim.{% endif %}</span>
         </td>
-        <td class="num">{{ a.bids_count if a.bids_count is not none else '-' }}</td>
-        <td class="nowrap">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '-' }}</td>
+        <td class="num hide-sm">{{ a.bids_count if a.bids_count is not none else '—' }}</td>
+        <td class="num hide-sm ct-muted">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '—' }}</td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
+  </div>
+  {{ m.pager(page_data, params) }}
+  {% else %}
+  <div style="padding-top:var(--ct-6)">{{ m.empty('Aucune attribution', "Lancez « radar collect-awards » pour alimenter l'historique depuis le portail, ou élargissez les filtres.") }}</div>
+  {% endif %}
 </div>
-{% else %}
-  {{ m.empty('Aucune attribution', 'Lancez `radar collect-awards` pour alimenter l\'historique depuis le portail.') }}
-{% endif %}
-</div>
-{{ m.pagination(page_data, params) }}
 {% endblock %}

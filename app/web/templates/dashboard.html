@@ -1,190 +1,140 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
-{% block title %}Tableau de bord - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Vue d'ensemble{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Mon entreprise</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Vue d'ensemble</h1>{% endblock %}
+{% block top_right %}
+<form method="post" action="/collect" class="rd-top-extra"><button class="ct-btn" type="submit">{{ m.icon('refresh') }} Collecter</button></form>
+{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="ct-hello">
   <div>
-    <h1>Tableau de bord</h1>
-    <p class="page-sub">
-      {% if summary.last_run %}
-        Derniere collecte : {{ summary.last_run.source }} &middot;
-        {{ summary.last_run.started_at.strftime('%d/%m/%Y a %Hh%M') }} &middot;
-        <span class="tag {{ 'tag-success' if summary.last_run.status == 'succeeded' else 'tag-danger' }}">{{ summary.last_run.status }}</span>
-      {% else %}Aucune collecte effectuee pour le moment.{% endif %}
+    {% if company_logo_full %}<img class="rd-hello-logo" src="{{ company_logo_full }}" alt="{{ company_name }}">{% endif %}
+    <h2>Bonjour, {{ company_name }}</h2>
+    <p>
+      {% if my_row %}Vous êtes <b style="color:var(--ct-ink);font-weight:600">#{{ my_row.rank }}</b> du marché de la cuisine professionnelle sur 12 mois{% if my_row.delta %}, {{ 'en hausse' if my_row.delta > 0 else 'en baisse' }} de {{ my_row.delta|abs }} place(s){% endif %}.
+      {% else %}Votre entreprise n'apparaît pas encore dans les attributions : la vue montre le marché.{% endif %}
+      {% if summary.last_run %} Dernière collecte le {{ summary.last_run.started_at.strftime('%d/%m à %Hh%M') }}.{% endif %}
     </p>
   </div>
-  <div class="btn-row">
-    <form method="get" action="/recherche" style="display:flex;gap:8px">
-      <input type="text" name="q" placeholder="Rechercher un marche, une entreprise..."
-             style="min-width:260px">
-      <button class="btn btn-light" type="submit">Rechercher</button>
-    </form>
-    <form method="post" action="/collect">
-      <button class="btn" type="submit">Collecter maintenant</button>
-    </form>
+  <div class="ct-stats">
+    <a class="ct-stat" href="/classement"><span class="ct-stat-v">{{ '#' ~ my_row.rank if my_row else '—' }}</span><span class="ct-stat-l">Rang, 12 mois</span></a>
+    <a class="ct-stat" href="/profil"><span class="ct-stat-v">{{ my_row.wins if my_row else 0 }}</span><span class="ct-stat-l">Marchés gagnés</span></a>
+    <a class="ct-stat" href="/avis?ouverts=true"><span class="ct-stat-v">{{ open_count }}</span><span class="ct-stat-l">Avis ouverts</span></a>
+    <a class="ct-stat" href="/candidatures"><span class="ct-stat-v">{{ bids.active }}</span><span class="ct-stat-l">Candidatures</span></a>
   </div>
 </div>
 
-{% if summary.tenders_total == 0 %}
-<div class="notice notice-info">
-  La base est vide. Lancez une premiere collecte avec <span class="mono">radar collect</span>
-  (ou le bouton ci-dessus) apres avoir renseigne <span class="mono">APIFY_TOKEN</span> dans le fichier <span class="mono">.env</span>.
+{% if summary.tenders_total == 0 and not summary.awards_total %}
+<div class="rd-banner" style="margin-bottom:var(--ct-5)">{{ m.icon('info') }}<span><b>La base est vide.</b> Renseignez <code>APIFY_TOKEN</code> dans <code>.env</code>, puis lancez une collecte, ou chargez le jeu d'exemple avec <code>radar demo</code>.</span></div>
+{% endif %}
+
+<div class="ct-card rd-hero rd-hero-split">
+  <div style="display:flex;flex-direction:column;justify-content:center">
+    <div class="ct-kv-l">Votre part du marché, 12 mois</div>
+    <div class="rd-big" style="margin-top:var(--ct-3)">{{ '%.1f'|format(my_row.share)|replace('.', ',') if my_row else '—' }}<small>%</small></div>
+    <div class="rd-big-l">
+      {% if my_row %}{{ my_row.amount|court }} DH adjugés à {{ company_name }}, sur {{ (board | sum(attribute='amount'))|court }} DH attribués dans votre domaine.
+      {% if rival and rival.rank < my_row.rank %} {{ rival.name|nom }} vous devance de {{ (rival.amount - my_row.amount)|court }} DH.{% elif rival %} Vous devancez {{ rival.name|nom }} de {{ (my_row.amount - rival.amount)|court }} DH.{% endif %}
+      {% else %}Rien d'attribué à {{ company_name }} sur les 12 derniers mois.{% endif %}
+    </div>
+    <div style="margin-top:var(--ct-5)"><a class="ct-btn sm" href="/profil">{{ m.icon('suppliers') }} Mon profil</a></div>
+  </div>
+  <div>
+    <div class="ct-kv-l" style="margin-bottom:var(--ct-2)">Classement, 12 mois</div>
+    {% set top = board[0].amount if board else 1 %}
+    <div class="pr-rank-list" style="padding:0">
+      {% for r in rank_window %}
+      <a class="pr-rank-row{{ ' is-me' if r.is_me }}" href="{{ m.company_href(r.supplier_id) if r.supplier_id else '#' }}" style="grid-template-columns:22px 28px minmax(0,1fr) 44px 64px 52px">
+        <span class="pr-rank-n">{{ r.rank }}</span>{{ m.logo(r.name, 28) }}
+        <span class="pr-rank-name">{{ r.name|nom }}</span>
+        {{ m.delta(r.delta) }}
+        <span class="pr-rank-bar"><i style="width:{{ [2, 100 * r.amount / (top or 1)]|max|round(1) }}%"></i></span>
+        <span class="pr-rank-v">{{ r.amount|court }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <a class="pr-more" href="/classement" style="margin-top:var(--ct-3)">Classement complet</a>
+  </div>
+</div>
+
+{% if chart %}
+<div class="ct-card" style="margin-top:var(--ct-5)">
+  <div class="ct-card-head">
+    <div><h2>Vous face à {{ rival.name|nom }}</h2><p>Montant adjugé chaque mois, 12 derniers mois · {{ rival.name|nom }} est #{{ rival.rank }}</p></div>
+    <div class="rd-legend"><span><i class="s1"></i>{{ company_name }}</span><span><i class="s2"></i>{{ rival.name|nom }}</span></div>
+  </div>
+  {{ m.chart_multi(chart) }}
 </div>
 {% endif %}
 
-<div class="kpis">
-  <div class="kpi">
-    <div class="kpi-label">Avis pertinents</div>
-    <div class="kpi-value">{{ summary.tenders_matched }}</div>
-    <div class="kpi-hint">sur {{ summary.tenders_total }} collectes</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Consultations ouvertes</div>
-    <div class="kpi-value">{{ summary.tenders_open }}</div>
-    <div class="kpi-hint">candidature encore possible</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Cloture sous 7 jours</div>
-    <div class="kpi-value" {% if summary.tenders_closing_soon %}style="color:var(--danger)"{% endif %}>{{ summary.tenders_closing_soon }}</div>
-    <div class="kpi-hint">a traiter en priorite</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Attributions connues</div>
-    <div class="kpi-value">{{ summary.awards_total }}</div>
-    <div class="kpi-hint">{{ summary.suppliers_total }} attributaire(s)</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Montant attribue</div>
-    <div class="kpi-value">{{ '{:,.0f}'.format(summary.awards_amount).replace(',', ' ') }}</div>
-    <div class="kpi-hint">dirhams, cumul historique</div>
-  </div>
+<div class="ct-section">
+  <div><h3>Opportunités</h3><p>Avis de votre domaine qui ferment dans les deux prochaines semaines</p></div>
+  <a class="ct-pill" href="/avis?ouverts=true&tri=deadline">Tous les avis {{ m.icon('right') }}</a>
 </div>
-
-<div class="card">
-  <div class="card-head">
-    <h2>Echeances proches</h2>
-    <a class="btn btn-light btn-sm" href="/avis?ouverts=true&tri=deadline">Tout voir</a>
-  </div>
+<div class="ct-card">
   {% if closing %}
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Objet</th><th>Acheteur</th><th class="num">Estimation</th><th>Date limite</th><th>Score</th></tr></thead>
-      <tbody>
-      {% for t in closing %}
-        <tr>
-          <td>
-            <div class="cell-main"><a href="/avis/{{ t.id }}">{{ t.object or 'Objet non precise' }}</a></div>
-            <div class="cell-sub">{{ t.reference or '-' }} &middot; {{ t.category.value }}</div>
-          </td>
-          <td>{{ t.buyer_raw or '-' }}</td>
-          <td class="num">{{ m.amount(t.estimated_amount, t.currency) }}</td>
-          <td class="nowrap">{{ t.submission_deadline.strftime('%d/%m/%Y') if t.submission_deadline else '-' }} {{ m.deadline_tag(t) }}</td>
-          <td class="num strong">{{ '%.0f'|format(t.match_score) }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <div class="rd-jobs">{% for t in closing %}{{ m.tender_row(t) }}{% endfor %}</div>
   {% else %}
-    {{ m.empty('Aucune echeance dans les 10 prochains jours', 'Les avis pertinents dont la date limite approche apparaitront ici.') }}
+  <div style="padding-top:var(--ct-6)">{{ m.empty('Aucune échéance dans les deux semaines', "Les avis de votre domaine dont la date limite approche apparaîtront ici.") }}</div>
   {% endif %}
 </div>
 
-<div class="grid-2">
-  <div class="card">
-    <div class="card-head">
-      <h2>Qui remporte le plus</h2>
-      <a class="btn btn-light btn-sm" href="/attributaires">Classement complet</a>
+<div class="rd-grid-2" style="margin-top:var(--ct-10)">
+  <section class="ct-card">
+    <div class="ct-card-head">
+      <div><h2>{{ 'Ce que vos concurrents viennent de gagner' if feed_is_watched else 'Dernières attributions du marché' }}</h2><p>{{ 'Les concurrents que vous suivez' if feed_is_watched else 'Suivez des concurrents pour voir leur activité ici' }}</p></div>
+      <a class="pr-more" href="/activite{{ '?vue=suivis' if feed_is_watched }}">Activité</a>
     </div>
-    {% if top_suppliers %}
-    {% set maxi = top_suppliers[0].total_amount or 1 %}
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Attributaire</th><th class="num">Marches</th><th class="num">Total</th><th></th></tr></thead>
-        <tbody>
-        {% for s in top_suppliers %}
-          <tr>
-            <td>
-              <div class="cell-main">{% if s.supplier_id %}<a href="/attributaires/{{ s.supplier_id }}">{{ s.name }}</a>{% else %}{{ s.name }}{% endif %}</div>
-              <div class="cell-sub">{{ s.buyers_count }} acheteur(s){% if s.avg_bids %} &middot; {{ '%.1f'|format(s.avg_bids) }} concurrents en moyenne{% endif %}</div>
-            </td>
-            <td class="num">{{ s.awards_count }}</td>
-            <td class="num strong">{{ m.amount(s.total_amount) }}</td>
-            <td style="width:70px"><div class="bar"><span style="width: {{ (100 * s.total_amount / maxi)|round|int }}%"></span></div></td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-      {{ m.empty('Aucune attribution enregistree', 'Lancez une collecte des resultats pour construire l\'historique.') }}
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <div class="card-head">
-      <h2>Dernieres attributions</h2>
-      <a class="btn btn-light btn-sm" href="/attributions">Tout voir</a>
-    </div>
-    {% if recent_awards %}
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Objet</th><th>Attributaire</th><th class="num">Montant</th><th>Date</th></tr></thead>
-        <tbody>
-        {% for a in recent_awards %}
-          <tr>
-            <td>
-              <div class="cell-main">{{ (a.object or a.reference or '-')|truncate(54) }}</div>
-              <div class="cell-sub">{{ a.buyer_raw or '-' }}</div>
-            </td>
-            <td>{{ a.supplier.name if a.supplier else (a.supplier_raw or '-') }}</td>
-            <td class="num strong">{{ m.amount(a.awarded_amount, a.currency) }}</td>
-            <td class="nowrap">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '-' }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-      {{ m.empty('Pas encore de resultats', 'Les attributions collectees sur le portail apparaitront ici.') }}
-    {% endif %}
-  </div>
-</div>
-
-{% if monthly %}
-<div class="card">
-  <h2>Attributions par mois</h2>
-  {% set maxv = monthly | map(attribute='total') | max or 1 %}
-  <div class="sparkline">
-    {% for p in monthly %}
-      <div style="height: {{ (100 * p.total / maxv)|round|int }}%" title="{{ p.month }} : {{ p.count }} marche(s), {{ '{:,.0f}'.format(p.total).replace(',', ' ') }} DH"></div>
+    {% if feed %}
+    <table class="rd-table"><tbody>
+    {% for a in feed %}
+      <tr>
+        <td>{{ m.company(a.supplier.name if a.supplier else a.supplier_raw, a.supplier_id, 32, (a.object or '—')|truncate(58)) }}</td>
+        <td class="num"><span class="ct-n">{{ a.awarded_amount|court }}</span><span class="rd-cur">DH</span><span class="rd-t2">{{ a.award_date.strftime('%d/%m/%y') }}</span></td>
+      </tr>
     {% endfor %}
-  </div>
-  <div class="cell-sub" style="margin-top:7px">{{ monthly[0].month }} &rarr; {{ monthly[-1].month }} &middot; survolez une barre pour le detail</div>
+    </tbody></table>
+    {% else %}{{ m.empty('Pas encore de résultats', 'Les attributions collectées sur le portail apparaîtront ici.') }}{% endif %}
+  </section>
+
+  <section class="ct-card">
+    <div class="ct-card-head"><div><h2>Vos segments</h2><p>Taille de chaque segment sur 12 mois, et votre rang</p></div><a class="pr-more" href="/segments">Segments</a></div>
+    {% if segments %}
+    {% set top = segments[0].amount or 1 %}
+    <table class="rd-table"><tbody>
+    {% for s in segments %}
+      <tr>
+        <td><a class="rd-t1" href="/classement?famille={{ s.family }}">{{ s.label }}</a><span class="rd-t2">{{ s.open_tenders }} avis ouvert(s) · leader {{ s.leader.name|nom if s.leader else '—' }}</span></td>
+        <td class="w-bar hide-sm"><div class="ct-bar rd-bar-c" style="--c:{{ s.color }}"><i style="width:{{ (100 * s.amount / top)|round|int }}%"></i></div></td>
+        <td class="num">{% if s.me %}<span class="ct-chip accent">#{{ s.me.rank }}</span>{% else %}<span class="ct-chip line">absent</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}{{ m.empty('Aucun segment', 'Les segments apparaissent avec les attributions.') }}{% endif %}
+  </section>
 </div>
-{% endif %}
 
 {% if summary.runs %}
-<div class="card">
-  <h2>Journal des collectes</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Source</th><th>Debut</th><th>Statut</th><th class="num">Recuperes</th><th class="num">Nouveaux</th><th class="num">Alertes</th><th class="num">Cout</th><th>Detail</th></tr></thead>
-      <tbody>
-      {% for r in summary.runs %}
-        <tr>
-          <td class="mono">{{ r.source }}</td>
-          <td class="nowrap">{{ r.started_at.strftime('%d/%m %Hh%M') }}</td>
-          <td><span class="tag {{ 'tag-success' if r.status == 'succeeded' else ('tag-danger' if r.status == 'failed' else 'tag-muted') }}">{{ r.status }}</span></td>
-          <td class="num">{{ r.items_fetched }}</td>
-          <td class="num">{{ r.items_new }}</td>
-          <td class="num">{{ r.notifications_sent }}</td>
-          <td class="num">{{ '$%.3f'|format(r.estimated_cost_usd) if r.estimated_cost_usd else '-' }}</td>
-          <td class="cell-sub">{{ (r.error or '')|truncate(70) }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+<div class="ct-card" style="margin-top:var(--ct-5)">
+  <div class="ct-card-head"><div><h2>Journal des collectes</h2><p>Les huit dernières, avec leur coût estimé</p></div></div>
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th>Source</th><th>Début</th><th>Statut</th><th class="num">Récupérés</th><th class="num">Nouveaux</th><th class="num">Alertes</th><th class="num">Coût</th><th>Détail</th></tr></thead>
+    <tbody>
+    {% for r in summary.runs %}
+      <tr>
+        <td><span class="ct-n">{{ r.source }}</span></td>
+        <td class="nowrap ct-muted">{{ r.started_at.strftime('%d/%m %Hh%M') }}</td>
+        <td><span class="ct-chip {{ 'pos' if r.status == 'succeeded' else ('neg' if r.status == 'failed' else 'line') }}">{{ r.status }}</span></td>
+        <td class="num">{{ r.items_fetched }}</td>
+        <td class="num">{{ r.items_new }}</td>
+        <td class="num">{{ r.notifications_sent }}</td>
+        <td class="num">{{ '$%.3f'|format(r.estimated_cost_usd) if r.estimated_cost_usd else '—' }}</td>
+        <td class="ct-faint" style="font-size:var(--ct-t-12)">{{ (r.error or '')|truncate(70) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
   </div>
 </div>
 {% endif %}

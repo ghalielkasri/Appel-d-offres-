@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Mon profil{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Mon entreprise</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Mon profil</h1>{% endblock %}
+{% block content %}
+<div class="ct-card" style="padding-top:var(--ct-6)">
+  {% call m.empty(company_name ~ " n'apparaît pas encore dans les attributions", "Votre profil se construit à partir des marchés que le portail vous attribue. Vérifiez que COMPANY_NAME dans .env est écrit comme sur le portail (la forme juridique, SARL ou SA, est ignorée), puis lancez une collecte des résultats.") %}
+    <a class="ct-btn ct-btn-dark" href="/classement">Voir le classement du marché</a>
+  {% endcall %}
+</div>
+{% endblock %}

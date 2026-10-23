@@ -1,35 +1,39 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
-{% block title %}Acheteurs - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Acheteurs{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Historique</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Acheteurs</h1>{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="ct-hello">
   <div>
-    <h1>Acheteurs publics</h1>
-    <p class="page-sub">Classement par montant total attribue</p>
+    <h2>Acheteurs publics</h2>
+    <p>Qui dépense le plus, et auprès de combien de fournisseurs. Un acheteur qui travaille avec peu de fournisseurs est un marché plus fermé.</p>
   </div>
 </div>
-<div class="card">
-{% if buyers %}
-{% set maxi = buyers[0].total_amount or 1 %}
-<div class="table-wrap">
-  <table>
-    <thead><tr><th>#</th><th>Acheteur</th><th class="num">Marches</th><th class="num">Montant total</th><th class="num">Fournisseurs</th><th></th></tr></thead>
+<div class="ct-card">
+  {% if buyers %}
+  {% set maxi = buyers[0].total_amount or 1 %}
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th class="rank">#</th><th>Acheteur</th><th class="num">Marchés</th><th class="num">Montant attribué</th><th class="num hide-sm">Fournisseurs</th><th class="w-bar hide-sm"></th></tr></thead>
     <tbody>
     {% for b in buyers %}
       <tr>
-        <td class="cell-sub">{{ loop.index }}</td>
-        <td class="strong"><a href="/attributions?acheteur={{ b.name|urlencode }}">{{ b.name }}</a></td>
+        <td class="rank">{{ loop.index }}</td>
+        <td><div class="rd-who">{{ m.logo(b.name, 40) }}<span>
+          {% if b.buyer_id %}<a class="rd-t1" href="/acheteurs/{{ b.buyer_id }}">{{ b.name }}</a>{% else %}<a class="rd-t1" href="/attributions?acheteur={{ b.name|urlencode }}">{{ b.name }}</a>{% endif %}
+          <span class="rd-t2">{{ (b.total_amount / b.awards_count)|court if b.awards_count else '—' }} DH par marché en moyenne</span>
+        </span></div></td>
         <td class="num">{{ b.awards_count }}</td>
-        <td class="num strong">{{ m.amount(b.total_amount) }}</td>
-        <td class="num">{{ b.suppliers_count }}</td>
-        <td style="width:70px"><div class="bar"><span style="width: {{ (100 * b.total_amount / maxi)|round|int }}%"></span></div></td>
+        <td class="num"><span class="ct-n">{{ m.amount(b.total_amount) }}</span></td>
+        <td class="num hide-sm">{{ b.suppliers_count }}</td>
+        <td class="w-bar hide-sm"><div class="ct-bar"><i style="width:{{ (100 * b.total_amount / maxi)|round|int }}%"></i></div></td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
-</div>
-{% else %}
-  {{ m.empty('Aucun acheteur connu', 'Les acheteurs apparaissent des que des attributions sont collectees.') }}
-{% endif %}
+  </div>
+  {% else %}
+  <div style="padding-top:var(--ct-6)">{{ m.empty('Aucun acheteur connu', 'Les acheteurs apparaissent dès que des attributions sont collectées.') }}</div>
+  {% endif %}
 </div>
 {% endblock %}

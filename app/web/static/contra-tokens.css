@@ -1,0 +1,122 @@
+/* Copied unchanged from the brand tracker (public/design-handoff/contra-tokens.css):
+   change it there first, then copy it back here, so the two apps stay one system.
+
+   Aya design tokens — the Contra-derived system (CLAUDE.md § Design).
+   Variables only. Every restyled surface reads these; component CSS carries
+   no hex, radius or font size of its own. Dark mode is disabled app-wide
+   (index.html boots light), so there is no dark set. */
+:root{
+  /* Surfaces. Contra is a white app: white canvas, white cards on hairlines,
+     ghost white for tracks, hovers and insets. Depth is borders, not fill. */
+  --ct-canvas:#FFFFFF;
+  --ct-card:#FFFFFF;
+  --ct-ghost:#F5F6F9;           /* segmented tracks, chips, hovers, insets */
+  --ct-ghost-2:#EEF0F4;         /* pressed / selected inset */
+  --ct-hover:#FAFAFB;           /* table row hover */
+  --ct-border:#E5E7EB;          /* hairlines, card and control borders */
+  --ct-border-soft:#F0F1F4;     /* row dividers inside a card */
+  --ct-border-strong:#D0D4DC;   /* control border on hover */
+  --ct-shimmer:rgba(255,255,255,.7); /* the light sweeping over skeleton blocks */
+
+  /* Ink. Cool slate grays, never warm. */
+  --ct-ink:#14171F;
+  --ct-ink-2:#3B4252;
+  --ct-muted:#677084;
+  --ct-faint:#9BA2B0;
+  --ct-ghost-ink:#C4C9D2;
+
+  /* Actions are midnight slate. Lime is the brand accent: the top line, the
+     active nav, matched/brand chips, bars and the glow under data lines. It
+     fills a button only for a brand moment (one per page at most), with ink
+     text. Lime is a fill: on white it is too light for text or a thin line,
+     so lines take the mid lime and text the deep lime. */
+  --ct-primary:#222834;
+  --ct-primary-ink:#FFFFFF;
+  --ct-accent:#C8F03C;          /* fills: top line, active nav, bars, brand buttons, chart glow */
+  --ct-accent-line:#779E00;     /* data lines, chart dots, slider, focus ring: 3:1 on white */
+  --ct-accent-ink:#4E6E00;      /* accent text and icons, on white or on a lime tint: 6:1 */
+  --ct-accent-soft:#F4FBD9;     /* tinted backgrounds: chips, banners, the selected row */
+  --ct-accent-tint:#E4F6A8;     /* stronger tint: borders of tinted cards, hovers on soft */
+
+  /* Content tints: Contra's colored modules. Feature cards only. */
+  --ct-mint:#E3F3EC;
+  --ct-mint-ink:#1E6A4F;
+  --ct-lime:#F0FB96;
+  --ct-coral:#FF5A5E;           /* small "NEW"-type badges */
+  --ct-pink:#CD74DD;
+
+  /* Data series, in order, for charts that compare things. Charts only. */
+  --ct-s1:#779E00; --ct-s2:#FF5A5E; --ct-s3:#12A594; --ct-s4:#F5A524; --ct-s5:#CD74DD;
+
+  /* Semantic tints, for status chips and cost tiers only. */
+  --ct-pos:#15803D; --ct-pos-bg:#EAF7EE;
+  --ct-neg:#D93036; --ct-neg-bg:#FDEEEE;
+  --ct-warn:#B26A00; --ct-warn-bg:#FFF4E0;
+
+  /* Gradients. Iridescent ring for the hero avatar and promo borders; the
+     "Pro" gradient for the one premium pill in the top bar. */
+  --ct-iris:conic-gradient(from 210deg,#C8F03C,#9DE6C4,#BFE0FF,#F9C6E3,#FFE6A6,#C8F03C);
+  /* The Campaigns workspace avatar: Discovery's iridescent hues, turned, so
+     the two Welovebuzz workspaces read as siblings. */
+  --ct-iris-alt:conic-gradient(from 30deg,#F9C6E3,#BFE0FF,#9DE6C4,#C8F03C,#FFE6A6,#F9C6E3);
+  --ct-pro:linear-gradient(90deg,#FF9F43,#F45FA4 55%,#8F6BFF);
+
+  /* The Aya mark keeps its coral. Logo only. */
+  --ct-brand:#F18768;
+
+  /* Type. Inter stands in for GT Standard: 400 body, 500 labels, 600 titles,
+     300 for the one big number. Slightly negative tracking throughout. */
+  --ct-font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --ct-t-10:10px;   /* uppercase key labels (letter-spaced) */
+  --ct-t-11:11px;   /* axis labels, badges */
+  --ct-t-12:12px;   /* meta, table headers, chips */
+  --ct-t-13:13px;   /* secondary body, controls */
+  --ct-t-14:14px;   /* body, nav, table cells */
+  --ct-t-15:15px;   /* card titles, names */
+  --ct-t-16:16px;   /* section titles, tabs */
+  --ct-t-input:16px; /* text fields on public phone pages: below 16px, iOS zooms in on focus */
+  --ct-t-18:18px;   /* top bar title */
+  --ct-t-24:24px;   /* stats values */
+  --ct-t-32:32px;   /* page/hero titles */
+  --ct-t-56:56px;   /* the single big number (weight 300) */
+  --ct-track:-.01em;
+  --ct-track-tight:-.022em;
+  --ct-caps:.08em;  /* uppercase key labels */
+
+  /* 4px grid. */
+  --ct-1:4px; --ct-2:8px; --ct-3:12px; --ct-4:16px; --ct-5:20px; --ct-6:24px;
+  --ct-8:32px; --ct-10:40px; --ct-12:48px; --ct-16:64px;
+
+  /* Radius. Badges 4, tinted chips 6, inputs/modules 10, media 12, cards 16,
+     buttons and filter chips are pills. */
+  --ct-r-xs:4px; --ct-r-chip:6px; --ct-r-ctl:10px; --ct-r-media:12px; --ct-r-card:16px; --ct-r-pill:999px;
+
+  /* Elevation is soft and rare: cards sit on hairlines; the active segment,
+     primary buttons, popovers and tooltips get these. */
+  --ct-shadow-seg:0 1px 2px rgba(20,23,31,.08),0 0 0 1px rgba(20,23,31,.04);
+  --ct-shadow-btn:0 4px 10px rgba(34,40,52,.05),-2px 18px 18px rgba(34,40,52,.04);
+  --ct-shadow-card:0 10px 20px rgba(0,0,0,.05);
+  --ct-float:0 16px 40px rgba(20,23,31,.12),0 2px 8px rgba(20,23,31,.06);
+
+  --ct-ease:cubic-bezier(.2,.7,.2,1);
+
+  /* Page column: content max width (padding is --ct-10 each side). */
+  --ct-page:1240px;
+  /* Sidebar width: Contra's proportion (was 264px). Media queries cannot
+     read it: the pages' mid-width breakpoints (1136px, 1216px; the
+     leaderboard 1320px) assume this width. */
+  --ct-side:300px;
+
+  /* Discover media cards: 2:3, taller than a 4:5 post, short of a full 9:16
+     reel (most thumbnails are vertical). */
+  --ct-media-ratio:2/3;
+
+  /* Over media: the white pill (co-author, series), the dark pill (views,
+     engagement) and its text, the white pill's lift. */
+  --ct-media-chip:rgba(255,255,255,.94);
+  --ct-media-pill:rgba(20,23,31,.62);
+  --ct-media-ink:#FFFFFF;
+  --ct-shadow-chip:0 2px 10px rgba(20,23,31,.12);
+  /* The veil behind a side sheet. */
+  --ct-veil:rgba(20,23,31,.28);
+}
