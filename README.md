@@ -225,18 +225,33 @@ Un refus d'accès n'est jamais déguisé en panne : c'est la différence entre
 
 ## 5. L'interface web
 
-Sept pages, accessibles depuis la navigation latérale.
+La plateforme est construite autour de **votre entreprise** : `COMPANY_NAME`
+dans `.env` (par défaut « Arcade Equipement ») désigne vos marchés parmi les
+attributions, la forme juridique ignorée. Tout le reste se lit par rapport à
+vous : votre rang, votre part, vos concurrents.
 
-| Page | Contenu |
-|---|---|
-| **Tableau de bord** | Chiffres clés, échéances proches, qui remporte le plus, dernières attributions, journal des collectes |
-| **Recherche** | Un seul champ qui cherche dans les avis, les attributions, les entreprises et les acheteurs |
-| **Appels d'offres** | Liste filtrable : recherche, catégorie, statut, acheteur, montant, tri par date limite ou pertinence |
-| **Fiche d'un avis** | Vue exacte : toutes les données, pièces du DCE, comparables et qui les a gagnés, repères de prix, concurrents probables |
-| **Attributions** | Historique : attributaire, montant adjugé, nombre de concurrents, écart à l'estimation |
-| **Attributaires** | Classement par montant total remporté, avec fiche détaillée par entreprise |
-| **Acheteurs** | Qui dépense le plus, et auprès de combien de fournisseurs |
-| **Exports** | CSV, Excel et JSON, et la liste des endpoints API |
+L'interface suit le système de design Contra du brand tracker
+(`app/web/static/contra-tokens.css`, copié tel quel) ; la fiche entreprise et
+les segments reprennent la fiche marque et les catégories du brand tracker.
+`⌘K` ou `/` ouvre la recherche rapide depuis n'importe quelle page.
+
+| Rubrique | Page | Contenu |
+|---|---|---|
+| Mon entreprise | **Vue d'ensemble** | Votre rang et votre part du marché sur 12 mois, le classement autour de vous, vous face au leader mois par mois, opportunités, ce que vos concurrents suivis viennent de gagner, vos segments |
+| | **Mon profil** | La fiche de votre entreprise : rang, part du marché, plus gros marchés, montant par mois, rang dans votre segment, segments, acheteurs, taux de réussite ; onglets Marchés, Concurrents, Acheteurs ; période 12 mois, 3 ans ou tout |
+| | **Candidatures** | À étudier → Go → En préparation → Soumis, puis Gagné, Perdu ou No-go ; pour un marché perdu, qui l'a gagné et l'écart avec votre offre |
+| Marché | **Appels d'offres** | Liste filtrable : recherche, catégorie, périmètre (mon domaine / tous), ouverts, acheteur, montant, dates, tri |
+| | **Fiche d'un avis** | Suivi de la candidature, repères de prix, pièces du DCE, comparables et qui les a gagnés, concurrents probables |
+| | **Activité** | Qui a gagné quoi, le plus récent d'abord : tout le marché, vos concurrents suivis ou vos marchés, par segment |
+| | **Classement** | Les entreprises par montant adjugé, avec l'évolution de chaque rang, la part, la courbe sur 12 mois ; par période et par segment |
+| | **Segments** | Le marché par famille d'équipement : part, leader, avis ouverts, votre rang dans chacun |
+| | **Concurrents** | Les entreprises que vous suivez, leurs derniers marchés, les acheteurs qu'ils ont et pas vous ; suggestions à suivre |
+| | **Fiche d'une entreprise** | La même fiche que la vôtre, avec un onglet « Face à vous » : terrain commun, où ils gagnent sans vous, où vous gagnez sans eux |
+| Historique | **Attributions** | Attributaire, montant adjugé, nombre de concurrents, écart à l'estimation |
+| | **Acheteurs** | Qui dépense le plus, et une fiche par acheteur : avis ouverts, qui gagne chez lui, ce qu'il achète |
+| | **Recherche** | Un seul champ qui cherche dans les avis, les attributions, les entreprises et les acheteurs |
+| Réglages | **Profils & canaux** | Canaux d'alerte, et l'édition des profils : activer, ajouter ou retirer mots-clés et exclusions, score minimal. Chaque modification recalcule tous les avis déjà collectés |
+| | **Exports** | CSV, Excel et JSON, et la liste des endpoints API |
 
 ### La recherche
 

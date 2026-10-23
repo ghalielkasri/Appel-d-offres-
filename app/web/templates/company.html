@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ 'Mon profil' if is_me else supplier.name|nom }}{% endblock %}
+{% block top_left %}
+{% if is_me %}<span class="ct-top-sect">Mon entreprise</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Mon profil</h1>
+{% else %}<a class="ct-top-back" href="/classement">{{ m.icon('back') }} Classement</a><span class="ct-top-sep">/</span><h1 class="ct-top-title">{{ supplier.name|nom }}</h1>{% endif %}
+{% endblock %}
+{% block top_right %}
+<div class="ct-seg rd-top-extra" role="group" aria-label="Période">
+  {% for key, p in PERIODS.items() %}<a class="ct-seg-btn{{ ' on' if period == key }}" href="{{ qs(params, periode=none if key == '12m' else key) }}">{{ p[0] }}</a>{% endfor %}
+</div>
+{% endblock %}
+{% block content %}
+{%- set name = supplier.name|nom -%}
+{%- set here = request.url.path -%}
+{%- set row = view.row -%}
+{%- set seg = view.segment -%}
+<section class="pr-hero">
+  <div class="pr-id">
+    <div class="pr-top">
+      <span class="pr-ring">{{ m.logo(supplier.name, 96) }}</span>
+      {% if view.wins %}<span class="ct-chip pr-status pos"><i></i>Actif · {{ view.wins|length }} marché(s) sur la période</span>
+      {% else %}<span class="ct-chip pr-status">Aucun marché sur la période</span>{% endif %}
+    </div>
+    <h2 class="pr-name">{{ name }}</h2>
+    <p class="pr-line">
+      {% if row %}<span>#{{ row.rank }} sur {{ board_size }} · {{ PERIODS[period][0]|lower }}</span>{{ m.delta(row.delta) if period != 'tout' }}{% endif %}
+      {% if seg %}{{ m.seg_chip(seg) }}{% endif %}
+      {% if view.segment_row %}<span>#{{ view.segment_row.rank }} du segment</span>{% endif %}
+      {% if is_me %}<span class="ct-chip caps dark">Vous</span>{% elif supplier.id in watched %}<span class="ct-chip caps accent">Suivi</span>{% endif %}
+    </p>
+    <div class="pr-actions">
+      {% if is_me %}
+        <a class="ct-btn ct-btn-dark" href="/avis?ouverts=true&tri=deadline">{{ m.icon('tenders') }} Opportunités ouvertes</a>
+        <a class="ct-btn" href="/candidatures">{{ m.icon('bids') }} Mes candidatures</a>
+      {% else %}
+        <form method="post" action="/attributaires/{{ supplier.id }}/suivre" class="rd-inline"><input type="hidden" name="next" value="{{ here }}">
+          {% if supplier.id in watched %}<button class="ct-btn on-follow" type="submit">{{ m.icon('check') }} Suivi</button>{% else %}<button class="ct-btn ct-btn-dark" type="submit">{{ m.icon('eye') }} Suivre ce concurrent</button>{% endif %}
+        </form>
+        {% if me_id %}<a class="ct-btn" href="{{ qs(params, onglet='face') }}">{{ m.icon('scale') }} Face à vous</a>{% endif %}
+      {% endif %}
+    </div>
+    <div class="ct-stats pr-stats">
+      <div class="ct-stat"><span class="ct-stat-v">{{ view.wins|length }}</span><span class="ct-stat-l">Marchés gagnés</span></div>
+      <div class="ct-stat"><span class="ct-stat-v">{{ view.total|court }}{% if view.total %}<small>DH</small>{% endif %}</span><span class="ct-stat-l">Montant adjugé</span></div>
+      <div class="ct-stat"><span class="ct-stat-v">{{ view.buyers|length }}</span><span class="ct-stat-l">Acheteurs</span></div>
+      <div class="ct-stat"><span class="ct-stat-v">{{ '%.1f'|format(row.share) if row else '—' }}{% if row %}<small>%</small>{% endif %}</span><span class="ct-stat-l">Part du marché</span></div>
+    </div>
+  </div>
+  {% if mosaic %}
+  <div class="pr-mosaic n{{ mosaic|length }}" aria-label="Plus gros marchés de la période">
+    {% for a in mosaic %}
+    <article class="pr-tile t{{ loop.index0 }}" style="--c:{{ (a.families[0] if a.families else 'cuisine_generale')|fcolor }}">
+      <div>
+        {{ m.seg_chip(a.families[0]) if a.families }}
+      </div>
+      <div>
+        <div class="pr-tile-amt">{{ a.awarded_amount|court }}<small>DH</small></div>
+        <div class="pr-tile-obj" style="margin-top:var(--ct-3)">{{ a.object }}</div>
+        <div class="pr-tile-meta" style="margin-top:var(--ct-2)">{{ a.buyer_raw }} · {{ a.award_date.strftime('%m/%Y') if a.award_date else '—' }}</div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="pr-mosaic-empty">Aucun marché gagné sur {{ PERIODS[period][0]|lower }}. Élargissez la période.</div>
+  {% endif %}
+</section>
+
+<nav class="ct-utabs" aria-label="Sections">
+  {% for t, label in [('apercu', "Vue d'ensemble"), ('marches', 'Marchés'), ('concurrents', 'Concurrents'), ('acheteurs', 'Acheteurs'), ('face', 'Face à vous')] if t in tabs %}
+  <a class="ct-utab{{ ' on' if tab == t }}" href="{{ qs(params, onglet=none if t == 'apercu' else t) }}">{{ label }}{% if t == 'marches' %}<em>{{ view.wins|length }}</em>{% elif t == 'acheteurs' %}<em>{{ view.buyers|length }}</em>{% endif %}</a>
+  {% endfor %}
+</nav>
+
+{# ── Vue d'ensemble ────────────────────────────────────────────────────── #}
+{% if tab == 'apercu' %}
+<div class="pr-ov-top">
+  <section class="ct-card">
+    <div class="ct-card-head"><div><h2>Montant gagné par mois</h2><p>{{ PERIODS[period][0] if period == '12m' else '36 derniers mois' }} · montants adjugés à {{ name }}</p></div></div>
+    {% if view.wins %}{{ m.chart(monthly) }}{% else %}{{ m.empty('Aucun marché sur la période', 'Élargissez la période pour voir une tendance.') }}{% endif %}
+    {%- set biggest = view.wins | map(attribute='awarded_amount') | reject('none') | list -%}
+    <div class="pr-perf-kv">
+      <div class="ct-kv"><span class="ct-kv-l">Montant moyen</span><span class="ct-kv-v">{{ (view.total / view.wins|length)|court if view.wins else '—' }}{% if view.wins %} <small>DH</small>{% endif %}</span></div>
+      <div class="ct-kv"><span class="ct-kv-l">Concurrents moyens</span><span class="ct-kv-v">{{ '%.1f'|format(row.avg_bids) if row and row.avg_bids else '—' }}</span></div>
+      <div class="ct-kv"><span class="ct-kv-l">Plus gros marché</span><span class="ct-kv-v">{{ (biggest|max)|court if biggest else '—' }}{% if biggest %} <small>DH</small>{% endif %}</span></div>
+      {% if is_me %}
+      <div class="ct-kv"><span class="ct-kv-l">Taux de réussite</span><span class="ct-kv-v">{{ '%.0f'|format(bids.win_rate) ~ ' %' if bids and bids.win_rate is not none else '—' }} {% if bids and bids.decided %}<small>sur {{ bids.decided }} offres</small>{% endif %}</span></div>
+      {% else %}
+      <div class="ct-kv"><span class="ct-kv-l">Dernier marché</span><span class="ct-kv-v">{{ last_any.strftime('%d/%m/%Y') if last_any else '—' }}</span></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="ct-card">
+    <div class="ct-card-head">
+      <div><h2>Rang en {{ seg|famille if seg else 'segment' }}</h2><p>{% if view.segment_row %}#{{ view.segment_row.rank }} sur {{ view.segment_rank|length }} · par montant adjugé{% else %}Aucun marché dans ce segment{% endif %}</p></div>
+      <a class="pr-more" href="{{ qs(params, onglet='concurrents') }}">Tout voir</a>
+    </div>
+    {% if rank_window %}
+    {% set top = view.segment_rank[0].amount or 1 %}
+    <div class="pr-rank-list">
+      {% for r in rank_window %}
+      <a class="pr-rank-row{{ ' is-me' if r.is_me else (' is-self' if r.supplier_id == supplier.id else '') }}" href="{{ m.company_href(r.supplier_id) if r.supplier_id else '#' }}">
+        <span class="pr-rank-n">{{ r.rank }}</span>{{ m.logo(r.name, 28) }}
+        <span class="pr-rank-name">{{ r.name|nom }}</span>
+        <span class="pr-rank-bar"><i style="width:{{ [2, 100 * r.amount / top]|max|round(1) }}%"></i></span>
+        <span class="pr-rank-v">{{ r.amount|court }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<div style="padding:0 var(--ct-6) var(--ct-6)" class="ct-faint">Pas de classement pour ce segment.</div>{% endif %}
+  </section>
+</div>
+
+<div class="rd-grid-2">
+  <section class="ct-card">
+    <div class="ct-card-head"><div><h2>Segments</h2><p>Où {{ name }} gagne, par famille d'équipement</p></div><a class="pr-more" href="/segments">Le marché</a></div>
+    {% if view.families %}
+    {% set top = view.families[0][1] or 1 %}
+    <table class="rd-table"><tbody>
+    {% for fam, amount, count in view.families %}
+      <tr>
+        <td><a class="rd-t1" href="{{ qs(params, onglet='concurrents', segment=fam) }}">{{ fam|famille }}</a><span class="rd-t2">{{ count }} marché(s)</span></td>
+        <td class="w-bar"><div class="ct-bar rd-bar-c" style="--c:{{ fam|fcolor }}"><i style="width:{{ (100 * amount / top)|round|int }}%"></i></div></td>
+        <td class="num"><span class="ct-n">{{ amount|court }}</span><span class="rd-cur">DH</span></td>
+      </tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}{{ m.empty('Aucun segment sur la période', 'Élargissez la période.') }}{% endif %}
+  </section>
+  <section class="ct-card">
+    <div class="ct-card-head"><div><h2>Acheteurs principaux</h2><p>Les donneurs d'ordre de {{ name }}</p></div><a class="pr-more" href="{{ qs(params, onglet='acheteurs') }}">Tout voir</a></div>
+    {% if view.buyers %}
+    <table class="rd-table"><tbody>
+    {% for b in view.buyers[:5] %}
+      <tr>
+        <td><div class="rd-who">{{ m.logo(b.name, 32) }}<span><span class="rd-t1">{{ m.buyer_link(b.name, b.supplier_id) }}</span><span class="rd-t2">{{ b.wins }} marché(s){% if b.last_win %} · dernier {{ b.last_win.strftime('%m/%Y') }}{% endif %}</span></span></div></td>
+        <td class="num"><span class="ct-n">{{ b.amount|court }}</span><span class="rd-cur">DH</span></td>
+      </tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}{{ m.empty('Aucun acheteur sur la période', 'Élargissez la période.') }}{% endif %}
+  </section>
+</div>
+
+<div class="ct-section"><div><h3>Derniers marchés gagnés</h3><p>Les plus récents de la période</p></div>{% if view.wins|length > 6 %}<a class="pr-more" href="{{ qs(params, onglet='marches') }}">Voir les {{ view.wins|length }}</a>{% endif %}</div>
+{% endif %}
+
+{# ── Marches ───────────────────────────────────────────────────────────── #}
+{% if tab in ('apercu', 'marches') %}
+{%- set list = view.wins if tab == 'marches' else view.wins[:6] -%}
+<div class="ct-card">
+  {% if list %}
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th>Marché</th><th class="hide-sm">Segment</th><th class="num">Adjugé</th><th class="num hide-sm">Concurrents</th><th class="num hide-sm">Date</th></tr></thead>
+    <tbody>
+    {% for a in list %}
+      <tr>
+        <td style="max-width:440px"><span class="rd-t1">{{ a.object or 'Objet non précisé' }}</span><span class="rd-t2">{{ m.buyer_link(a.buyer_raw, a.buyer_id) }} · {{ a.reference or 'sans référence' }}</span></td>
+        <td class="hide-sm">{% for f in a.families[:1] %}{{ m.seg_chip(f) }}{% endfor %}</td>
+        <td class="num"><span class="ct-n">{{ m.amount(a.awarded_amount, a.currency) }}</span>{% if a.amount_includes_tax is not none %}<span class="rd-t2">{{ 'TTC' if a.amount_includes_tax else 'HT' }}</span>{% endif %}</td>
+        <td class="num hide-sm">{{ a.bids_count if a.bids_count is not none else '—' }}</td>
+        <td class="num hide-sm ct-muted">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div style="padding-top:var(--ct-6)">{{ m.empty('Aucun marché sur la période', 'Élargissez la période en haut de page.') }}</div>{% endif %}
+</div>
+{% endif %}
+
+{# ── Concurrents : le classement du segment ────────────────────────────── #}
+{% if tab == 'concurrents' %}
+<div class="rd-controls-2">
+  <div class="ct-tabs" aria-label="Segment">
+    {% for f in segment_choices %}<a class="ct-tab{{ ' on' if f == seg }}" href="{{ qs(params, segment=f) }}">{{ f|famille }}</a>{% endfor %}
+  </div>
+  <a class="ct-pill" href="/classement?famille={{ seg or '' }}{{ '&periode=' ~ period if period != '12m' }}">Classement complet {{ m.icon('right') }}</a>
+</div>
+<div class="ct-card">
+  <div class="ct-card-head"><div><h2>Classement {{ seg|famille if seg else '' }}</h2><p>{{ view.segment_rank|length }} entreprise(s) · {{ PERIODS[period][0]|lower }} · par montant adjugé</p></div></div>
+  {% if view.segment_rank %}
+  {% set top = view.segment_rank[0].amount or 1 %}
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th class="rank">#</th><th>Entreprise</th><th class="num">Marchés</th><th class="num">Montant</th><th class="hide-sm">Part du segment</th><th class="num hide-sm">Concur. moy.</th><th class="num"></th></tr></thead>
+    <tbody>
+    {% for r in view.segment_rank %}
+      <tr class="{{ 'is-me' if r.is_me }}">
+        <td class="rank">{{ r.rank }}</td>
+        <td>{{ m.company(r.name, r.supplier_id, 32, r.buyers_count ~ ' acheteur(s)') }}</td>
+        <td class="num">{{ r.wins }}</td>
+        <td class="num"><span class="ct-n">{{ r.amount|court }}</span><span class="rd-cur">DH</span></td>
+        <td class="hide-sm" style="min-width:160px"><div style="display:flex;align-items:center;gap:var(--ct-2)"><div class="ct-bar" style="flex:1"><i style="width:{{ [1.5, 100 * r.amount / top]|max|round(1) }}%"></i></div><span class="ct-muted" style="font-size:var(--ct-t-12);width:44px;text-align:right">{{ '%.1f'|format(r.share) }} %</span></div></td>
+        <td class="num hide-sm">{{ '%.1f'|format(r.avg_bids) if r.avg_bids else '—' }}</td>
+        <td class="num">{{ m.follow(r.supplier_id, request.url.path ~ qs(params)) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<div style="padding-top:var(--ct-6)">{{ m.empty('Aucun marché dans ce segment', 'Choisissez un autre segment ou élargissez la période.') }}</div>{% endif %}
+</div>
+{% endif %}
+
+{# ── Acheteurs ─────────────────────────────────────────────────────────── #}
+{% if tab == 'acheteurs' %}
+<div class="ct-card">
+  {% if view.buyers %}
+  {% set top = view.buyers[0].amount or 1 %}
+  <table class="rd-table">
+    <thead><tr><th>Acheteur</th><th class="num">Marchés</th><th class="num">Montant</th><th class="w-bar hide-sm"></th><th class="num hide-sm">Dernier</th></tr></thead>
+    <tbody>
+    {% for b in view.buyers %}
+      <tr>
+        <td><div class="rd-who">{{ m.logo(b.name, 36) }}<span class="rd-t1">{{ m.buyer_link(b.name, b.supplier_id) }}</span></div></td>
+        <td class="num">{{ b.wins }}</td>
+        <td class="num"><span class="ct-n">{{ m.amount(b.amount) }}</span></td>
+        <td class="w-bar hide-sm"><div class="ct-bar"><i style="width:{{ (100 * b.amount / top)|round|int }}%"></i></div></td>
+        <td class="num hide-sm ct-muted">{{ b.last_win.strftime('%m/%Y') if b.last_win else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div style="padding-top:var(--ct-6)">{{ m.empty('Aucun acheteur sur la période', 'Élargissez la période en haut de page.') }}</div>{% endif %}
+</div>
+{% endif %}
+
+{# ── Face a vous ───────────────────────────────────────────────────────── #}
+{% if tab == 'face' and h2h %}
+<div class="ct-hello" style="margin-bottom:var(--ct-5)">
+  <div>
+    <h2 style="font-size:var(--ct-t-24)">{{ company_name }} face à {{ name }}</h2>
+    <p>Sur 3 ans, acheteur par acheteur.{% if h2h.shared_families %} Vous vous croisez sur :{% endif %}</p>
+    {% if h2h.shared_families %}<div class="rd-chips" style="margin-top:var(--ct-2)">{% for f in h2h.shared_families %}{{ m.seg_chip(f) }}{% endfor %}</div>{% endif %}
+  </div>
+  <div class="rd-legend"><span><i class="s1"></i>{{ company_name }}</span><span><i class="s2"></i>{{ name }}</span></div>
+</div>
+<div class="rd-vs">
+  {% for title, sub, items in [
+    ('Terrain commun', 'Les acheteurs chez qui vous gagnez tous les deux', h2h.shared),
+    ('Où ils gagnent sans vous', 'Vos prochaines cibles : ces acheteurs leur font confiance', h2h.only_them),
+    ('Où vous gagnez sans eux', 'Vos positions à défendre', h2h.only_me),
+  ] %}
+  <section class="ct-card">
+    <div class="ct-card-head"><div><h2>{{ title }}</h2><p>{{ sub }}</p></div><span class="ct-card-meta">{{ items|length }}</span></div>
+    {% if items %}
+    {% set top = [items | map(attribute='me_amount') | max, items | map(attribute='them_amount') | max, 1] | max %}
+    <table class="rd-table"><tbody>
+    {% for e in items[:8] %}
+      <tr><td>
+        <span class="rd-t1">{{ m.buyer_link(e.name, e.buyer_id) }}</span>
+        <div class="rd-vs-bars" style="margin-top:6px">
+          {% if e.me %}<div><span>{{ e.me }} m.</span><span class="ct-bar"><i style="width:{{ [2, 100 * e.me_amount / top]|max|round(1) }}%;background:var(--ct-s1)"></i></span><b>{{ e.me_amount|court }}</b></div>{% endif %}
+          {% if e.them %}<div class="them"><span>{{ e.them }} m.</span><span class="ct-bar"><i style="width:{{ [2, 100 * e.them_amount / top]|max|round(1) }}%"></i></span><b>{{ e.them_amount|court }}</b></div>{% endif %}
+        </div>
+      </td></tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}{{ m.empty('Aucun acheteur', 'Rien dans cette catégorie sur 3 ans.') }}{% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Concurrents{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Marché</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Concurrents</h1>{% endblock %}
+{% block top_right %}<a class="ct-btn rd-top-extra" href="/classement">{{ m.icon('trophy') }} Classement</a>{% endblock %}
+{% block content %}
+<div class="ct-hello">
+  <div>
+    <h2>Concurrents suivis</h2>
+    <p>Ce que font les entreprises que vous surveillez : leur rang, leurs derniers marchés, et les acheteurs qu'ils ont et que vous n'avez pas.</p>
+  </div>
+  <div class="ct-stats">
+    <div class="ct-stat"><span class="ct-stat-v">{{ cards|length }}</span><span class="ct-stat-l">Suivis</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ (cards | selectattr('row') | map(attribute='row.amount') | sum)|court }}<small>DH</small></span><span class="ct-stat-l">Leur montant, 12 mois</span></div>
+    <a class="ct-stat" href="/profil"><span class="ct-stat-v">{{ my_row.amount|court if my_row else '—' }}{% if my_row %}<small>DH</small>{% endif %}</span><span class="ct-stat-l">Le vôtre</span></a>
+  </div>
+</div>
+
+{% if cards %}
+<div class="rd-comp-grid">
+  {% for c in cards %}
+  {%- set r = c.row -%}
+  <article class="ct-card rd-comp">
+    <div class="rd-comp-h">
+      {{ m.company(c.supplier.name, c.supplier.id, 48, ('#' ~ r.rank ~ ' du marché · ' ~ (r.top_family|famille if r.top_family else '')) if r else 'Aucun marché sur 12 mois') }}
+      {% if r %}{{ m.delta(r.delta) }}{% endif %}
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--ct-3)">
+      <div class="rd-comp-k" style="flex:1">
+        <div class="ct-kv"><span class="ct-kv-l">Marchés</span><span class="ct-kv-v">{{ r.wins if r else 0 }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Montant</span><span class="ct-kv-v">{{ r.amount|court if r else '—' }}{% if r %} <small>DH</small>{% endif %}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Part</span><span class="ct-kv-v">{{ '%.1f'|format(r.share) ~ ' %' if r else '—' }}</span></div>
+      </div>
+      {{ m.spark(c.spark) }}
+    </div>
+    <div class="rd-comp-list">
+      <span class="ct-kv-l">Derniers marchés</span>
+      {% for a in c.recent %}
+      <div class="rd-comp-item"><span title="{{ a.object }}">{{ a.object }} · {{ a.buyer_raw }}</span><b>{{ a.awarded_amount|court }} DH</b></div>
+      {% else %}<span class="ct-faint" style="font-size:var(--ct-t-13)">Aucun marché connu.</span>{% endfor %}
+    </div>
+    {% if c.h2h %}
+    <div class="rd-comp-list">
+      <span class="ct-kv-l">Face à vous, 3 ans</span>
+      <div class="rd-comp-item"><span>Acheteurs en commun</span><b>{{ c.h2h.shared|length }}</b></div>
+      <div class="rd-comp-item"><span>Acheteurs où ils gagnent sans vous</span><b>{{ c.h2h.only_them|length }}</b></div>
+      {% if c.h2h.only_them %}<div class="ct-faint" style="font-size:var(--ct-t-12)">dont {{ c.h2h.only_them[:2] | map(attribute='name') | join(', ') }}</div>{% endif %}
+    </div>
+    {% endif %}
+    <div class="rd-comp-f">
+      <a class="ct-btn sm ct-btn-dark" href="/attributaires/{{ c.supplier.id }}">Fiche</a>
+      {% if me_id %}<a class="ct-btn sm" href="/attributaires/{{ c.supplier.id }}?onglet=face">{{ m.icon('scale') }} Face à vous</a>{% endif %}
+      {{ m.follow(c.supplier.id, '/concurrents') }}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="ct-card" style="padding-top:var(--ct-6)">
+  {% call m.empty('Vous ne suivez encore aucun concurrent', "Suivez une entreprise depuis le classement ou sa fiche : ses victoires arriveront ici et dans l'activité.") %}
+    <a class="ct-btn ct-btn-dark" href="/classement">Ouvrir le classement</a>
+  {% endcall %}
+</div>
+{% endif %}
+
+{% if suggestions %}
+<div class="ct-section"><div><h3>À surveiller</h3><p>Ils gagnent sur vos familles d'équipement et chez vos acheteurs, sur 3 ans</p></div></div>
+<div class="ct-card">
+  <table class="rd-table"><tbody>
+  {% for r in suggestions %}
+    <tr>
+      <td>{{ m.company(r.name, r.supplier_id, 40, r.wins ~ ' marché(s) · ' ~ r.buyers_count ~ ' acheteur(s)' ~ (' · ' ~ (r.top_family|famille) if r.top_family else '')) }}</td>
+      <td class="num"><span class="ct-n">{{ r.amount|court }}</span><span class="rd-cur">DH</span></td>
+      <td class="num">{{ m.follow(r.supplier_id, '/concurrents') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody></table>
+</div>
+{% endif %}
+
+{% if feed %}
+<div class="ct-section"><div><h3>Leurs dernières victoires</h3><p>Tous concurrents suivis confondus</p></div><a class="ct-pill" href="/activite?vue=suivis">Toute l'activité {{ m.icon('right') }}</a></div>
+<div class="ct-card">
+  <table class="rd-table"><tbody>
+  {% for a in feed %}
+    <tr>
+      <td>{{ m.company(a.supplier.name if a.supplier else a.supplier_raw, a.supplier_id, 32) }}</td>
+      <td style="max-width:380px"><span class="rd-t1">{{ a.object }}</span><span class="rd-t2">{{ m.buyer_link(a.buyer_raw, a.buyer_id) }}</span></td>
+      <td class="num"><span class="ct-n">{{ a.awarded_amount|court }}</span><span class="rd-cur">DH</span><span class="rd-t2">{{ a.award_date.strftime('%d/%m/%Y') }}</span></td>
+    </tr>
+  {% endfor %}
+  </tbody></table>
+</div>
+{% endif %}
+{% endblock %}

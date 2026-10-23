@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Activité{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Marché</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Activité</h1>{% endblock %}
+{% block content %}
+<div class="ct-hello">
+  <div>
+    <h2>Qui gagne quoi</h2>
+    <p>Les attributions de votre domaine, la plus récente d'abord : {{ count }} affichée(s).</p>
+  </div>
+  <div class="ct-seg" role="group" aria-label="Point de vue">
+    {% for key, label in scopes.items() %}<a class="ct-seg-btn{{ ' on' if scope == key }}" href="{{ qs(params, vue=none if key == 'tous' else key) }}">{{ label }}</a>{% endfor %}
+  </div>
+</div>
+
+<div class="ct-tabs" aria-label="Segment" style="margin-bottom:var(--ct-2)">
+  <a class="ct-tab{{ ' on' if not family }}" href="{{ qs(params, famille=none) }}">Tous les segments</a>
+  {% for f in FAMILIES %}<a class="ct-tab{{ ' on' if family == f }}" href="{{ qs(params, famille=f) }}">{{ f|famille }}</a>{% endfor %}
+</div>
+
+{% if months %}
+  {% for label, items in months %}
+  <div class="rd-feed-month">{{ label }} · {{ items|length }} marché(s)</div>
+  <div class="ct-card">
+    {% for a in items %}
+    {%- set who = a.supplier.name if a.supplier else a.supplier_raw -%}
+    <div class="rd-ev{{ ' is-me' if a.supplier_id and a.supplier_id == me_id }}">
+      {{ m.logo(who, 40) }}
+      <div style="min-width:0">
+        <div class="rd-ev-t">
+          {% if a.supplier_id %}<a href="{{ m.company_href(a.supplier_id) }}"><b>{{ who|nom }}</b></a>{% else %}<b>{{ who|nom }}</b>{% endif %}
+          {{ m.tags(a.supplier_id) }} a remporté un marché chez {{ m.buyer_link(a.buyer_raw, a.buyer_id) }}
+        </div>
+        <span class="rd-ev-o">{{ a.object }}</span>
+        <div class="rd-meta">
+          {% for f in a.families[:1] %}{{ m.seg_chip(f) }}{% endfor %}
+          <span>{{ a.award_date.strftime('%d/%m/%Y') }}</span>
+          {% if a.bids_count is not none %}<span>{{ a.bids_count }} concurrents</span>{% endif %}
+          {% if a.estimated_amount and a.awarded_amount %}<span>{{ '%+.0f'|format(100 * (a.awarded_amount - a.estimated_amount) / a.estimated_amount) }} % vs estimation</span>{% endif %}
+        </div>
+      </div>
+      <div class="rd-ev-r"><b>{{ m.amount(a.awarded_amount, a.currency) }}</b><span>{{ ('TTC' if a.amount_includes_tax else 'HT') if a.amount_includes_tax is not none else 'adjugé' }}</span></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+{% else %}
+<div class="ct-card" style="padding-top:var(--ct-6)">
+  {{ m.empty('Rien à afficher', "Suivez des concurrents depuis le classement pour remplir cette vue." if scope == 'suivis' else "Aucune attribution pour ce filtre.") }}
+</div>
+{% endif %}
+{% endblock %}

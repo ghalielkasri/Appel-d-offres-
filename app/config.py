@@ -50,6 +50,13 @@ class Settings(BaseSettings):
 
     # --- General ---
     app_name: str = "Radar Marches Publics"
+    #: Votre raison sociale, telle que le portail l'ecrit dans les attributions :
+    #: c'est elle qui fait de la plateforme votre tableau de bord face aux autres.
+    company_name: str = "Arcade Equipement"
+    #: Logos de l'entreprise, relatifs a app/web/static : le symbole (avatars,
+    #: onglet du navigateur) et le logo complet (vue d'ensemble).
+    company_logo: str = "brand/arcade-mark.png"
+    company_logo_full: str = "brand/arcade-logo.png"
     timezone: str = "Africa/Casablanca"
     log_level: str = "INFO"
     base_url: str = "http://localhost:8000"

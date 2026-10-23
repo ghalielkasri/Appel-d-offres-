@@ -1,72 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Exports - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Exports{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Réglages</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Exports</h1>{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="ct-hello">
   <div>
-    <h1>Exports de donnees</h1>
-    <p class="page-sub">Toutes les donnees collectees, dans le format de votre choix</p>
+    <h2>Exports de données</h2>
+    <p>Toutes les données collectées, dans le format de votre choix.</p>
+  </div>
+  <div class="ct-stats">
+    <div class="ct-stat"><span class="ct-stat-v">{{ summary.tenders_total }}</span><span class="ct-stat-l">Avis</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ summary.awards_total }}</span><span class="ct-stat-l">Attributions</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ summary.suppliers_total }}</span><span class="ct-stat-l">Attributaires</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ summary.buyers_total }}</span><span class="ct-stat-l">Acheteurs</span></div>
   </div>
 </div>
 
-<div class="kpis">
-  <div class="kpi"><div class="kpi-label">Avis</div><div class="kpi-value">{{ summary.tenders_total }}</div></div>
-  <div class="kpi"><div class="kpi-label">Attributions</div><div class="kpi-value">{{ summary.awards_total }}</div></div>
-  <div class="kpi"><div class="kpi-label">Attributaires</div><div class="kpi-value">{{ summary.suppliers_total }}</div></div>
-  <div class="kpi"><div class="kpi-label">Acheteurs</div><div class="kpi-value">{{ summary.buyers_total }}</div></div>
-</div>
-
-<div class="card">
-  <h2>Export integral</h2>
-  <p class="cell-sub">Tout l'historique en un fichier : avis, attributions, attributaires, acheteurs et journal des collectes.</p>
-  <div class="btn-row">
-    <a class="btn" href="/export/complet.xlsx">Classeur Excel (5 feuilles)</a>
-    <a class="btn btn-light" href="/export/complet.json">JSON complet (charges brutes incluses)</a>
+<div class="ct-card rd-hero" style="grid-template-columns:minmax(0,1fr) auto">
+  <div>
+    <div class="ct-kv-l">Export intégral</div>
+    <div style="font-size:var(--ct-t-18);font-weight:500;margin-top:var(--ct-2)">Tout l'historique en un fichier</div>
+    <div class="ct-muted" style="margin-top:var(--ct-1)">Avis, attributions, attributaires, acheteurs et journal des collectes.</div>
+  </div>
+  <div class="rd-controls" style="margin:0">
+    <a class="ct-btn ct-btn-dark" href="/export/complet.xlsx">{{ m.icon('download') }} Excel, 5 feuilles</a>
+    <a class="ct-btn" href="/export/complet.json">JSON avec données brutes</a>
   </div>
 </div>
 
-<div class="card">
-  <h2>Exports par table</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Contenu</th><th>Formats</th><th>Remarque</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="strong">Appels d'offres</td>
-          <td><a href="/export/avis.csv">CSV</a></td>
-          <td class="cell-sub">Les filtres de la page "Appels d'offres" s'appliquent a l'export.</td>
-        </tr>
-        <tr>
-          <td class="strong">Attributions</td>
-          <td><a href="/export/attributions.csv">CSV</a> &middot; <a href="/export/attributions.xlsx">Excel</a></td>
-          <td class="cell-sub">Attributaire, montant adjuge, nombre de concurrents, ecart a l'estimation.</td>
-        </tr>
-        <tr>
-          <td class="strong">Attributaires</td>
-          <td><a href="/export/attributaires.csv">CSV</a></td>
-          <td class="cell-sub">Palmares agrege : nombre de marches, montants total, moyen et maximal.</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <p class="cell-sub" style="margin-bottom:0">Les CSV sont en UTF-8 avec BOM et separateur point-virgule : Excel les ouvre directement.</p>
+<div class="ct-section"><div><h3>Par table</h3><p>Les CSV sont en UTF-8 avec BOM et séparateur point-virgule : Excel les ouvre directement.</p></div></div>
+<div class="ct-card">
+  <table class="rd-table">
+    <tbody>
+      {% for title, note, links in [
+        ("Appels d'offres", "Les filtres de la page « Appels d'offres » s'appliquent à l'export.", [('CSV', '/export/avis.csv')]),
+        ('Attributions', "Attributaire, montant adjugé, nombre de concurrents, écart à l'estimation.", [('CSV', '/export/attributions.csv'), ('Excel', '/export/attributions.xlsx')]),
+        ('Attributaires', 'Palmarès agrégé : nombre de marchés, montants total, moyen et maximal.', [('CSV', '/export/attributaires.csv')]),
+      ] %}
+      <tr>
+        <td><span class="rd-t1">{{ title }}</span><span class="rd-t2">{{ note }}</span></td>
+        <td class="num"><div class="rd-controls" style="margin:0;justify-content:flex-end">{% for label, href in links %}<a class="ct-btn sm" href="{{ href }}">{{ m.icon('download') }} {{ label }}</a>{% endfor %}</div></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 
-<div class="card">
-  <h2>Acces par API</h2>
-  <p class="cell-sub">Pour brancher un autre outil (Power BI, Looker Studio, un script) :</p>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Endpoint</th><th>Contenu</th></tr></thead>
-      <tbody>
-        <tr><td class="mono">GET /api/tenders</td><td class="cell-sub">Avis, avec les memes filtres que l'interface</td></tr>
-        <tr><td class="mono">GET /api/awards</td><td class="cell-sub">Attributions</td></tr>
-        <tr><td class="mono">GET /api/suppliers</td><td class="cell-sub">Classement des attributaires</td></tr>
-        <tr><td class="mono">GET /api/stats</td><td class="cell-sub">Chiffres agreges et serie mensuelle</td></tr>
-        <tr><td class="mono">GET /api/health</td><td class="cell-sub">Etat du service et derniere collecte</td></tr>
-        <tr><td class="mono">POST /api/collect/tenders</td><td class="cell-sub">Declenche une collecte des avis</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <p class="cell-sub" style="margin-bottom:0">Documentation interactive : <a href="/docs">/docs</a></p>
+<div class="ct-section"><div><h3>Accès par API</h3><p>Pour brancher Power BI, Looker Studio ou un script</p></div><a class="ct-pill" href="/docs">Documentation interactive {{ m.icon('right') }}</a></div>
+<div class="ct-card">
+  <table class="rd-table">
+    <tbody>
+      {% for ep, what in [
+        ('GET /api/tenders', "Avis, avec les mêmes filtres que l'interface"),
+        ('GET /api/awards', 'Attributions'),
+        ('GET /api/suppliers', 'Classement des attributaires'),
+        ('GET /api/bids', 'Suivi des candidatures et taux de réussite'),
+        ('GET /api/tenders/{id}/comparables', 'Précédents, repères de prix, concurrents probables'),
+        ('GET /api/stats', 'Chiffres agrégés et série mensuelle'),
+        ('GET /api/health', 'État du service et dernière collecte'),
+        ('POST /api/collect/tenders', 'Déclenche une collecte des avis'),
+      ] %}
+      <tr><td style="width:340px"><span class="rd-code">{{ ep }}</span></td><td class="ct-muted">{{ what }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

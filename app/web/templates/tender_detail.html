@@ -1,260 +1,298 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
-{% block title %}{{ tender.reference or 'Avis' }} - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ tender.reference or 'Avis' }}{% endblock %}
+{% block top_left %}<a class="ct-top-back" href="/avis">{{ m.icon('back') }} Appels d'offres</a><span class="ct-top-sep">/</span><h1 class="ct-top-title">{{ tender.reference or 'Avis sans référence' }}</h1>{% endblock %}
+{% block top_right %}{% if tender.consultation_url %}<a class="ct-btn rd-top-extra" href="{{ tender.consultation_url }}" target="_blank" rel="noopener">{{ m.icon('external') }} Portail</a>{% endif %}{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div style="max-width:720px">
-    <p class="page-sub" style="margin-bottom:4px">
-      <a href="/avis">&larr; Appels d'offres</a> &middot; {{ tender.reference or 'sans référence' }}
-    </p>
-    <h1 style="font-size:19px;line-height:1.35">{{ tender.object or 'Objet non précisé' }}</h1>
-    <p class="page-sub">
-      {{ tender.buyer_raw or 'Acheteur non précisé' }}
-      {%- if tender.buyer_service %} &middot; {{ tender.buyer_service }}{% endif %}
-    </p>
-    <div style="margin-top:8px">
-      {{ m.status_tag(tender.status) }}
-      {{ m.deadline_tag(tender) }}
-      <span class="tag tag-muted">{{ tender.category.value }}</span>
-      {% for f in tender.families %}<span class="tag tag-primary">{{ f|famille }}</span>{% endfor %}
+{%- set here = request.url.path -%}
+<div class="rd-page">
+<div style="min-width:0">
+
+  <div class="rd-head">
+    <div class="rd-head-co">
+      {{ m.logo(tender.buyer_raw or tender.reference, 32) }}
+      <span>{{ m.buyer_link(tender.buyer_raw or 'Acheteur non précisé', tender.buyer_id) }}{% if tender.buyer_service %} · {{ tender.buyer_service }}{% endif %}</span>
+    </div>
+    <h2 class="rd-head-t">{{ tender.object or 'Objet non précisé' }}</h2>
+    <div class="rd-meta" style="font-size:var(--ct-t-14);margin-top:var(--ct-3)">
+      <span>{{ tender.category.value }}</span>
+      {% if tender.procedure_type %}<span>{{ tender.procedure_type }}</span>{% endif %}
+      {% if tender.execution_place %}<span>{{ tender.execution_place }}</span>{% endif %}
+      {% if tender.publication_date %}<span>publié le {{ tender.publication_date.strftime('%d/%m/%Y') }}</span>{% endif %}
+    </div>
+    <div class="rd-chips">
+      {{ m.status_chip(tender.status) }}
+      {{ m.deadline_chip(tender) }}
+      {% if bid %}{{ m.stage_chip(bid.stage) }}{% endif %}
+      {% for f in tender.families %}<span class="ct-chip accent">{{ f|famille }}</span>{% endfor %}
     </div>
   </div>
-  <div class="btn-row">
-    {% if tender.consultation_url %}
-    <a class="btn" href="{{ tender.consultation_url }}" target="_blank" rel="noopener">Voir sur le portail</a>
-    {% endif %}
-  </div>
-</div>
 
-<div class="kpis">
-  <div class="kpi">
-    <div class="kpi-label">Estimation annoncée</div>
-    <div class="kpi-value" style="font-size:19px">{{ m.amount(tender.estimated_amount, tender.currency) }}</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Médian des comparables</div>
-    <div class="kpi-value" style="font-size:19px">{{ m.amount(benchmark.median_amount) }}</div>
-    <div class="kpi-hint">{{ benchmark.count }} marché(s) retenu(s)</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Écart médian / estimation</div>
-    {% if benchmark.gap_to_estimate is not none %}
-    <div class="kpi-value" style="font-size:19px;color:{{ 'var(--danger)' if benchmark.gap_to_estimate > 0 else 'var(--success)' }}">
-      {{ '%+.1f'|format(benchmark.gap_to_estimate) }} %
+  {# ── Suivi de la candidature ─────────────────────────────────────────── #}
+  <div class="ct-card" style="margin-top:var(--ct-8)" id="suivi">
+    <div class="ct-card-head">
+      <div><h2>Suivi de la candidature</h2>
+        <p>{% if bid %}Dernière mise à jour le {{ bid.updated_at.strftime('%d/%m/%Y à %Hh%M') }}{% else %}Cet avis n'est pas encore suivi par l'équipe{% endif %}</p></div>
+      {% if bid %}{{ m.stage_chip(bid.stage) }}{% endif %}
     </div>
-    <div class="kpi-hint">adjugé plus {{ 'cher' if benchmark.gap_to_estimate > 0 else 'bas' }} que l'estimation</div>
-    {% else %}<div class="kpi-value" style="font-size:19px">-</div>{% endif %}
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Concurrents attendus</div>
-    <div class="kpi-value" style="font-size:19px">{{ '%.0f'|format(benchmark.avg_bids) if benchmark.avg_bids else '-' }}</div>
-    <div class="kpi-hint">moyenne sur les comparables</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Date limite</div>
-    <div class="kpi-value" style="font-size:19px">{{ tender.submission_deadline.strftime('%d/%m/%Y') if tender.submission_deadline else '-' }}</div>
-    <div class="kpi-hint">{{ tender.submission_deadline.strftime('%Hh%M') if tender.submission_deadline else '' }}</div>
-  </div>
-</div>
+    <div class="ct-card-pad">
+      {% if bid %}
+        {%- set idx = bid_path.index(bid.stage) if bid.stage in bid_path else (4 if bid.stage.is_decided else -1) -%}
+        <div class="rd-steps">
+          {% for stage in bid_path %}
+          <div class="rd-step{{ ' cur' if loop.index0 == idx else (' done' if loop.index0 < idx else '') }}">
+            <form method="post" action="/avis/{{ tender.id }}/suivi">
+              <input type="hidden" name="stage" value="{{ stage.value }}"><input type="hidden" name="next" value="{{ here }}#suivi">
+              <button type="submit" title="Passer à « {{ stage.label }} »">
+                <span class="rd-step-dot">{% if loop.index0 < idx %}{{ m.icon('check') }}{% else %}{{ loop.index }}{% endif %}</span>
+                <span class="rd-step-l">{{ stage.label }}</span>
+              </button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% if bid.stage.value == 'dropped' %}
+        <div class="rd-banner warn" style="margin-top:var(--ct-5)">{{ m.icon('flag') }}<span><b>No-go.</b> L'équipe a décidé de ne pas répondre. Choisissez une étape pour reprendre.</span></div>
+        {% endif %}
 
-<div class="card">
-  <h2>Pièces du dossier de consultation</h2>
-  {% if documents %}
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Nature</th><th>Fichier</th><th>État</th><th class="num">Taille</th><th></th></tr></thead>
+        <form class="rd-bid-form" method="post" action="/avis/{{ tender.id }}/suivi">
+          <input type="hidden" name="stage" value="{{ bid.stage.value }}"><input type="hidden" name="next" value="{{ here }}#suivi">
+          <div class="rd-field">
+            <label for="b-amount">Montant de notre offre</label>
+            <input class="rd-input" id="b-amount" name="offered_amount" inputmode="decimal" value="{{ '{:,.0f}'.format(bid.offered_amount).replace(',', ' ') if bid.offered_amount else '' }}" placeholder="{{ '{:,.0f}'.format(benchmark.median_amount).replace(',', ' ') ~ ' (médian)' if benchmark.median_amount else 'en DH' }}">
+          </div>
+          <div class="rd-field">
+            <label for="b-note">Notes de l'équipe</label>
+            <textarea class="rd-input" id="b-note" name="note" placeholder="Pièces à réunir, points du CPS, décision…">{{ bid.note or '' }}</textarea>
+          </div>
+          <div class="rd-spacer"></div>
+          <div><button class="ct-btn ct-btn-dark sm" type="submit">Enregistrer</button></div>
+        </form>
+
+        <div class="rd-outcome">
+          <span class="ct-faint" style="font-size:var(--ct-t-13)">Issue</span>
+          <div>
+            {% for value, label, ico in [('won', 'Gagné', 'check'), ('lost', 'Perdu', 'x'), ('dropped', 'No-go', 'flag')] %}
+            <form method="post" action="/avis/{{ tender.id }}/suivi"><input type="hidden" name="stage" value="{{ value }}"><input type="hidden" name="next" value="{{ here }}#suivi"><button class="ct-btn sm{{ ' ct-btn-dark' if bid.stage.value == value }}" type="submit">{{ m.icon(ico) }} {{ label }}</button></form>
+            {% endfor %}
+            <form method="post" action="/avis/{{ tender.id }}/suivi"><input type="hidden" name="stage" value=""><input type="hidden" name="next" value="{{ here }}"><button class="ct-btn sm ghost" type="submit">Retirer du suivi</button></form>
+          </div>
+        </div>
+      {% else %}
+        <div class="rd-outcome" style="margin:0;padding:0;border:0">
+          <span class="ct-muted" style="font-size:var(--ct-t-14);max-width:460px">Ajoutez l'avis au suivi pour noter la décision go / no-go, le montant de l'offre et l'issue. Le taux de réussite se calcule sur ces issues.</span>
+          <div>
+            <form method="post" action="/avis/{{ tender.id }}/suivi"><input type="hidden" name="stage" value="review"><input type="hidden" name="next" value="{{ here }}#suivi"><button class="ct-btn ct-btn-accent" type="submit">{{ m.icon('plus') }} Suivre cette candidature</button></form>
+            <form method="post" action="/avis/{{ tender.id }}/suivi"><input type="hidden" name="stage" value="dropped"><input type="hidden" name="next" value="{{ here }}#suivi"><button class="ct-btn" type="submit">No-go</button></form>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Reperes de prix ─────────────────────────────────────────────────── #}
+  <div class="ct-card" style="margin-top:var(--ct-5)">
+    <div class="ct-card-head">
+      <div><h2>Repères de prix</h2><p>Montants adjugés sur les marchés comparables, et l'estimation de cet avis</p></div>
+      <span class="ct-card-meta">{{ benchmark.count }} précédent(s)</span>
+    </div>
+    <div class="ct-card-pad">
+      <div class="ct-stats rd-stats-4">
+        <div class="ct-stat"><span class="ct-stat-v">{{ tender.estimated_amount|court }}{% if tender.estimated_amount %}<small>DH</small>{% endif %}</span><span class="ct-stat-l">Estimation annoncée</span></div>
+        <div class="ct-stat"><span class="ct-stat-v">{{ benchmark.median_amount|court }}{% if benchmark.median_amount %}<small>DH</small>{% endif %}</span><span class="ct-stat-l">Médian des comparables</span></div>
+        {% set gap = benchmark.gap_to_estimate %}
+        <div class="ct-stat{{ '' if gap is none else (' warn' if gap > 0 else ' pos') }}"><span class="ct-stat-v">{{ '—' if gap is none else ('%+.1f'|format(gap) ~ ' %') }}</span><span class="ct-stat-l">{{ 'Écart médian / estimation' if gap is none else ('adjugé plus cher que l\'estimation' if gap > 0 else 'adjugé sous l\'estimation') }}</span></div>
+        <div class="ct-stat"><span class="ct-stat-v">{{ '%.0f'|format(benchmark.avg_bids) if benchmark.avg_bids else '—' }}</span><span class="ct-stat-l">Concurrents attendus</span></div>
+      </div>
+
+      {% if benchmark.count %}
+        {%- set est = tender.estimated_amount -%}
+        {%- set lo = [benchmark.minimum, est or benchmark.minimum]|min -%}
+        {%- set hi = [benchmark.maximum, est or benchmark.maximum]|max -%}
+        {%- set span = hi - lo -%}
+        {%- set lo2 = lo - span * 0.08 if span else lo * 0.9 -%}
+        {%- set hi2 = hi + span * 0.08 if span else hi * 1.1 -%}
+        {%- set w = hi2 - lo2 -%}
+        {%- set p_min = 100 * (benchmark.minimum - lo2) / w -%}
+        {%- set p_med = 100 * (benchmark.median_amount - lo2) / w -%}
+        {%- set p_est = 100 * ((est or 0) - lo2) / w -%}
+        <div class="rd-range" role="img" aria-label="Fourchette adjugée de {{ benchmark.minimum|court }} à {{ benchmark.maximum|court }} DH, médian {{ benchmark.median_amount|court }} DH{% if est %}, estimation {{ est|court }} DH{% endif %}">
+          <div class="rd-range-trk"></div>
+          <div class="rd-range-band" style="left:{{ '%.2f'|format(p_min) }}%;width:{{ '%.2f'|format(100 * (benchmark.maximum - benchmark.minimum) / w) }}%"></div>
+          <div class="rd-range-dot" style="left:{{ '%.2f'|format(p_med) }}%"></div>
+          <span class="rd-range-lab top{{ ' l' if p_med < 12 else (' r' if p_med > 88 else '') }}" style="left:{{ '%.2f'|format(p_med) }}%">Médian <b>{{ benchmark.median_amount|court }} DH</b></span>
+          {% if est %}
+          <div class="rd-range-est" style="left:{{ '%.2f'|format(p_est) }}%"></div>
+          <span class="rd-range-lab bot{{ ' l' if p_est < 12 else (' r' if p_est > 88 else '') }}" style="left:{{ '%.2f'|format(p_est) }}%">Estimation <b>{{ est|court }} DH</b></span>
+          {% endif %}
+        </div>
+        <div class="rd-legend" style="margin-top:var(--ct-6)">
+          <span><i></i>Fourchette adjugée : {{ m.amount(benchmark.minimum) }} → {{ m.amount(benchmark.maximum) }}</span>
+          <span><i class="dot"></i>Médian, préféré à la moyenne qu'un seul gros marché déplacerait</span>
+          {% if est %}<span><i class="est"></i>Estimation de l'avis</span>{% endif %}
+        </div>
+      {% else %}
+        <div class="ct-empty flush" style="margin-top:var(--ct-5)"><b>Pas encore de repère de prix</b><span>Il faut au moins un marché comparable attribué. L'historique se remplit à chaque collecte des résultats.</span></div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Pieces du DCE ───────────────────────────────────────────────────── #}
+  <div class="ct-card" style="margin-top:var(--ct-5)">
+    <div class="ct-card-head"><div><h2>Pièces du dossier de consultation</h2><p>CPS, bordereau des prix, règlement : le DCE de l'avis</p></div></div>
+    {% if documents %}
+    <div class="rd-scroll">
+    <table class="rd-table">
+      <thead><tr><th>Pièce</th><th>État</th><th class="num">Taille</th><th></th></tr></thead>
       <tbody>
       {% for d in documents %}
         <tr>
-          <td><span class="tag {{ 'tag-primary' if d.kind.value in ('cps','bordereau') else 'tag-muted' }}">{{ d.kind_label }}</span></td>
-          <td class="cell-sub">{{ d.name or '-' }}</td>
+          <td><span class="rd-t1">{{ d.kind_label }}</span><span class="rd-t2">{{ d.name or '—' }}</span></td>
           <td>
-            {% if d.status.value == 'downloaded' %}<span class="tag tag-success">disponible</span>
-            {% elif d.status.value == 'auth_required' %}<span class="tag tag-warn">compte requis</span>
-            {% elif d.status.value == 'failed' %}<span class="tag tag-danger">échec</span>
-            {% else %}<span class="tag tag-muted">référencée</span>{% endif %}
-            {% if d.error %}<div class="cell-sub">{{ d.error|truncate(90) }}</div>{% endif %}
+            {% if d.status.value == 'downloaded' %}<span class="ct-chip pos">disponible</span>
+            {% elif d.status.value == 'auth_required' %}<span class="ct-chip warn">compte requis</span>
+            {% elif d.status.value == 'failed' %}<span class="ct-chip neg">échec</span>
+            {% else %}<span class="ct-chip line">référencée</span>{% endif %}
+            {% if d.error %}<span class="rd-t2">{{ d.error|truncate(90) }}</span>{% endif %}
           </td>
-          <td class="num cell-sub">{{ '%.0f ko'|format(d.size_bytes / 1024) if d.size_bytes else '-' }}</td>
-          <td>
-            {% if d.status.value == 'downloaded' %}
-              <a class="btn btn-light btn-sm" href="/avis/{{ tender.id }}/piece/{{ d.id }}">Télécharger</a>
-            {% elif d.url.startswith('http') %}
-              <a class="btn btn-light btn-sm" href="{{ d.url }}" target="_blank" rel="noopener">Sur le portail</a>
-            {% endif %}
+          <td class="num ct-muted">{{ '%.0f ko'|format(d.size_bytes / 1024) if d.size_bytes else '—' }}</td>
+          <td class="num">
+            {% if d.status.value == 'downloaded' %}<a class="ct-btn sm" href="/avis/{{ tender.id }}/piece/{{ d.id }}">{{ m.icon('download') }} Télécharger</a>
+            {% elif d.url.startswith('http') %}<a class="ct-btn sm" href="{{ d.url }}" target="_blank" rel="noopener">Sur le portail</a>{% endif %}
           </td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
+    </div>
+    {% else %}
+    <div class="ct-card-pad">
+      <div class="rd-banner warn">{{ m.icon('info') }}<span><b>Aucune pièce référencée pour cet avis.</b> Le portail ne publie les références du DCE que pour une partie des avis, et son téléchargement est réservé aux comptes entreprise (Espace fournisseur). Renseignez <code>PORTAL_LOGIN</code> et <code>PORTAL_PASSWORD</code> dans <code>.env</code>, puis lancez <code>radar documents-sync</code> et <code>radar documents-fetch</code>. Le bouton « Voir sur le portail » mène toujours à la consultation d'origine.</span></div>
+    </div>
+    {% endif %}
   </div>
-  {% else %}
-  <div class="notice">
-    <strong>Aucune pièce référencée pour cet avis.</strong><br>
-    Le portail ne publie les références du DCE que pour une partie des avis, et
-    son téléchargement est réservé aux comptes entreprise (Espace fournisseur).
-    Renseignez <span class="mono">PORTAL_LOGIN</span> et <span class="mono">PORTAL_PASSWORD</span>
-    dans le fichier <span class="mono">.env</span>, puis lancez
-    <span class="mono">radar documents-sync</span> et <span class="mono">radar documents-fetch</span>.
-    Le lien « Voir sur le portail » ci-dessus mène toujours à la consultation d'origine.
-  </div>
-  {% endif %}
-</div>
 
-<div class="card">
-  <div class="card-head">
-    <h2>Marchés comparables et qui les a remportés</h2>
-    <span class="cell-sub">rapprochement par donneur d'ordre et type d'équipement</span>
-  </div>
-  {% if comparables %}
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>Objet du précédent</th><th>Acheteur</th><th>Attributaire</th><th class="num">Montant adjugé</th><th class="num">Concur.</th><th>Date</th><th>Pourquoi ce rapprochement</th></tr>
-      </thead>
+  {# ── Comparables ─────────────────────────────────────────────────────── #}
+  <div class="ct-card" style="margin-top:var(--ct-5)">
+    <div class="ct-card-head"><div><h2>Marchés comparables et qui les a remportés</h2><p>Rapprochés par donneur d'ordre, type d'équipement et proximité de l'objet</p></div><span class="ct-card-meta">{{ comparables|length }}</span></div>
+    {% if comparables %}
+    <div class="rd-scroll">
+    <table class="rd-table">
+      <thead><tr><th>Précédent</th><th>Attributaire</th><th class="num">Adjugé</th><th class="num hide-sm">Concur.</th><th class="hide-sm">Pourquoi</th></tr></thead>
       <tbody>
       {% for c in comparables %}
         <tr>
-          <td style="max-width:280px">
-            <div class="cell-main">{{ c.award.object or 'Objet non précisé' }}</div>
-            <div class="cell-sub">{{ c.award.reference or '-' }}</div>
+          <td style="max-width:300px">
+            <span class="rd-t1">{{ c.award.object or 'Objet non précisé' }}</span>
+            <span class="rd-t2">{{ m.buyer_link(c.award.buyer_raw, c.award.buyer_id) }} · {{ c.award.award_date.strftime('%m/%Y') if c.award.award_date else 'date inconnue' }}</span>
           </td>
-          <td class="cell-sub">
-            {{ c.award.buyer_raw or '-' }}
-            {% if c.same_buyer %}<div><span class="tag tag-success">même acheteur</span></div>{% endif %}
-          </td>
-          <td class="strong">
-            {% if c.award.supplier %}<a href="/attributaires/{{ c.award.supplier.id }}">{{ c.award.supplier.name }}</a>
-            {% else %}{{ c.award.supplier_raw or '-' }}{% endif %}
-          </td>
-          <td class="num strong">
-            {{ m.amount(c.award.awarded_amount, c.award.currency) }}
-            {% if c.award.amount_includes_tax is not none %}<div class="cell-sub">{{ 'TTC' if c.award.amount_includes_tax else 'HT' }}</div>{% endif %}
-          </td>
-          <td class="num">{{ c.award.bids_count if c.award.bids_count is not none else '-' }}</td>
-          <td class="nowrap cell-sub">{{ c.award.award_date.strftime('%m/%Y') if c.award.award_date else '-' }}</td>
-          <td style="max-width:230px">
-            <span class="tag {{ 'tag-success' if c.confidence == 'forte' else ('tag-warn' if c.confidence == 'moyenne' else 'tag-muted') }}">{{ c.confidence }}</span>
-            <div class="cell-sub">{{ c.reasons | join(' ; ') }}</div>
-          </td>
+          <td><div class="rd-who">{{ m.logo(c.award.supplier.name if c.award.supplier else c.award.supplier_raw, 28) }}<span>{{ m.supplier_link(c.award) }}</span></div></td>
+          <td class="num"><span class="ct-n">{{ m.amount(c.award.awarded_amount, c.award.currency) }}</span>{% if c.award.amount_includes_tax is not none %}<span class="rd-t2">{{ 'TTC' if c.award.amount_includes_tax else 'HT' }}</span>{% endif %}</td>
+          <td class="num hide-sm">{{ c.award.bids_count if c.award.bids_count is not none else '—' }}</td>
+          <td class="hide-sm" style="max-width:220px">{{ m.confidence_chip(c.confidence) }}<span class="rd-t2">{{ c.reasons | join(' · ') }}</span></td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
+    </div>
+    {% else %}
+      {{ m.empty('Aucun précédent comparable', "Un rapprochement exige un lien réel : même famille d'équipement, ou objets vraiment proches. L'historique se remplit à chaque collecte des résultats.") }}
+    {% endif %}
   </div>
-  {% if benchmark.count %}
-  <p class="cell-sub" style="margin-bottom:0">
-    Fourchette adjugée sur ces marchés : <strong>{{ m.amount(benchmark.minimum) }}</strong> &rarr;
-    <strong>{{ m.amount(benchmark.maximum) }}</strong>, médian <strong>{{ m.amount(benchmark.median_amount) }}</strong>.
-    Le médian est préféré à la moyenne : un seul très gros marché la déplacerait.
-  </p>
-  {% endif %}
-  {% else %}
-    {{ m.empty('Aucun précédent comparable', 'Un rapprochement exige un lien thématique réel : même famille d\'équipement, ou objets vraiment proches. L\'historique se remplit à chaque collecte des résultats.') }}
-  {% endif %}
-</div>
 
-<div class="grid-2">
-  <div class="card">
-    <h2>Concurrents probables</h2>
-    {% if competitors %}
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Entreprise</th><th class="num">Marchés comparables</th><th class="num">dont cet acheteur</th><th>Dernier</th></tr></thead>
+  <div class="rd-grid-2">
+    <div class="ct-card">
+      <div class="ct-card-head"><div><h2>Concurrents probables</h2><p>D'abord ceux qui gagnent chez ce donneur d'ordre</p></div></div>
+      {% if competitors %}
+      <table class="rd-table">
         <tbody>
         {% for k in competitors %}
           <tr>
-            <td class="strong">{% if k.supplier_id %}<a href="/attributaires/{{ k.supplier_id }}">{{ k.name }}</a>{% else %}{{ k.name }}{% endif %}</td>
-            <td class="num">{{ k.wins }}</td>
-            <td class="num">{% if k.same_buyer_wins %}<span class="tag tag-warn">{{ k.same_buyer_wins }}</span>{% else %}0{% endif %}</td>
-            <td class="nowrap cell-sub">{{ k.last_award.strftime('%m/%Y') if k.last_award else '-' }}</td>
+            <td>{{ m.company(k.name, k.supplier_id, 32, k.wins ~ ' comparable(s) gagné(s)' ~ (' · dernier ' ~ k.last_award.strftime('%m/%Y') if k.last_award else '')) }}</td>
+            <td class="num">{% if k.same_buyer_wins %}<span class="ct-chip warn">{{ k.same_buyer_wins }} chez cet acheteur</span>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
+      {% else %}{{ m.empty('Pas encore identifiables', 'Il faut des marchés comparables attribués pour dégager des concurrents récurrents.') }}{% endif %}
     </div>
-    <p class="cell-sub" style="margin-bottom:0">Classés d'abord sur les marchés gagnés chez ce même donneur d'ordre.</p>
-    {% else %}
-      {{ m.empty('Pas encore identifiables', 'Il faut des marchés comparables attribués pour dégager des concurrents récurrents.') }}
-    {% endif %}
-  </div>
 
-  <div class="card">
-    <h2>Consultations en cours similaires</h2>
-    {% if similar_open %}
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Objet</th><th>Acheteur</th><th>Limite</th></tr></thead>
+    <div class="ct-card">
+      <div class="ct-card-head"><div><h2>Consultations similaires en cours</h2><p>Même type d'équipement, ailleurs</p></div></div>
+      {% if similar_open %}
+      <table class="rd-table">
         <tbody>
         {% for other, score, reasons in similar_open %}
           <tr>
-            <td style="max-width:260px">
-              <div class="cell-main"><a href="/avis/{{ other.id }}">{{ other.object or 'Objet non précisé' }}</a></div>
-              <div class="cell-sub">{{ reasons | join(' ; ') }}</div>
-            </td>
-            <td class="cell-sub">{{ other.buyer_raw or '-' }}</td>
-            <td class="nowrap">{{ other.submission_deadline.strftime('%d/%m') if other.submission_deadline else '-' }} {{ m.deadline_tag(other) }}</td>
+            <td style="max-width:280px"><a class="rd-t1" href="/avis/{{ other.id }}">{{ other.object or 'Objet non précisé' }}</a><span class="rd-t2">{{ other.buyer_raw or '—' }} · {{ reasons | join(' · ') }}</span></td>
+            <td class="num">{{ m.deadline_chip(other) }}</td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
+      {% else %}{{ m.empty('Aucune consultation similaire ouverte', "Rien d'autre en cours ne porte sur le même type d'équipement.") }}{% endif %}
     </div>
-    {% else %}
-      {{ m.empty('Aucune consultation similaire ouverte', 'Rien d\'autre en cours ne porte sur le même type d\'équipement.') }}
-    {% endif %}
   </div>
-</div>
 
-{% if buyer_history %}
-<div class="card">
-  <div class="card-head">
-    <h2>Tout ce que cet acheteur a attribué</h2>
-    <a class="btn btn-light btn-sm" href="/attributions?acheteur={{ (tender.buyer_raw or '')|urlencode }}">Tout voir</a>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Objet</th><th>Attributaire</th><th class="num">Montant</th><th class="num">Concur.</th><th>Date</th></tr></thead>
+  {% if buyer_history %}
+  <div class="ct-card" style="margin-top:var(--ct-5)">
+    <div class="ct-card-head">
+      <div><h2>Ce que cet acheteur a déjà attribué</h2><p>Tous types de marchés confondus</p></div>
+      {% if tender.buyer_id %}<a class="ct-btn sm" href="/acheteurs/{{ tender.buyer_id }}">Fiche acheteur</a>{% endif %}
+    </div>
+    <table class="rd-table">
       <tbody>
       {% for a in buyer_history %}
         <tr>
-          <td style="max-width:360px"><div class="cell-main">{{ a.object or '-' }}</div><div class="cell-sub">{{ a.reference or '-' }}</div></td>
-          <td>{% if a.supplier %}<a href="/attributaires/{{ a.supplier.id }}">{{ a.supplier.name }}</a>{% else %}{{ a.supplier_raw or '-' }}{% endif %}</td>
-          <td class="num strong">{{ m.amount(a.awarded_amount, a.currency) }}</td>
-          <td class="num">{{ a.bids_count if a.bids_count is not none else '-' }}</td>
-          <td class="nowrap cell-sub">{{ a.award_date.strftime('%m/%Y') if a.award_date else '-' }}</td>
+          <td style="max-width:380px"><span class="rd-t1">{{ a.object or '—' }}</span><span class="rd-t2">{{ a.reference or '—' }} · {{ a.award_date.strftime('%m/%Y') if a.award_date else 'date inconnue' }}</span></td>
+          <td class="hide-sm">{{ m.supplier_link(a) }}</td>
+          <td class="num"><span class="ct-n">{{ m.amount(a.awarded_amount, a.currency) }}</span></td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
-{% endif %}
-
-<div class="card">
-  <h2>Fiche complète de l'avis</h2>
-  <div class="grid-2">
-    <dl class="meta">
-      <dt>Référence</dt><dd class="mono">{{ tender.reference or '-' }}</dd>
-      <dt>Procédure</dt><dd>{{ tender.procedure_type or '-' }}</dd>
-      <dt>Catégorie</dt><dd>{{ tender.category.value }}</dd>
-      <dt>Lots</dt><dd>{{ tender.lots_count or '-' }}</dd>
-      <dt>Lieu d'exécution</dt><dd>{{ tender.execution_place or '-' }}</dd>
-      <dt>Publication</dt><dd>{{ tender.publication_date.strftime('%d/%m/%Y') if tender.publication_date else '-' }}</dd>
-    </dl>
-    <dl class="meta">
-      <dt>Date limite</dt><dd>{{ tender.submission_deadline.strftime('%d/%m/%Y à %Hh%M') if tender.submission_deadline else '-' }}</dd>
-      <dt>Séance d'ouverture</dt><dd>{{ tender.opening_session_date.strftime('%d/%m/%Y à %Hh%M') if tender.opening_session_date else '-' }}</dd>
-      <dt>Caution provisoire</dt><dd>{{ m.amount(tender.caution_provisoire, tender.currency) }}</dd>
-      <dt>Score de veille</dt><dd>{{ '%.0f'|format(tender.match_score) }}{% if tender.matched_keywords %} &middot; {% for k in tender.matched_keywords[:8] %}<span class="kw">{{ k }}</span>{% endfor %}{% endif %}</dd>
-      <dt>Source</dt><dd class="mono cell-sub">{{ tender.source }}</dd>
-      <dt>Première détection</dt><dd class="cell-sub">{{ tender.first_seen_at.strftime('%d/%m/%Y à %Hh%M') }}</dd>
-    </dl>
-  </div>
-  {% if tender.raw %}
-  <details style="margin-top:14px">
-    <summary class="cell-sub" style="cursor:pointer">Données brutes de la source</summary>
-    <pre class="mono" style="background:#f8fafc;border:1px solid var(--border);border-radius:7px;padding:12px;overflow-x:auto;font-size:11px;margin-top:8px">{{ tender.raw | tojson(indent=2) }}</pre>
-  </details>
   {% endif %}
+
+  <div class="ct-card" style="margin-top:var(--ct-5)">
+    <div class="ct-card-head"><div><h2>Fiche complète de l'avis</h2><p>Tout ce que la source a publié</p></div></div>
+    <div class="ct-card-pad">
+      <div class="rd-kv-grid">
+        <div class="ct-kv"><span class="ct-kv-l">Référence</span><span class="ct-kv-v">{{ tender.reference or '—' }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Procédure</span><span class="ct-kv-v">{{ tender.procedure_type or '—' }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Lots</span><span class="ct-kv-v">{{ tender.lots_count or '—' }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Lieu d'exécution</span><span class="ct-kv-v">{{ tender.execution_place or '—' }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Publication</span><span class="ct-kv-v">{{ tender.publication_date.strftime('%d/%m/%Y') if tender.publication_date else '—' }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Séance d'ouverture</span><span class="ct-kv-v">{{ tender.opening_session_date.strftime('%d/%m/%Y à %Hh%M') if tender.opening_session_date else '—' }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Source</span><span class="ct-kv-v">{{ tender.source }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Première détection</span><span class="ct-kv-v">{{ tender.first_seen_at.strftime('%d/%m/%Y à %Hh%M') }}</span></div>
+        <div class="ct-kv"><span class="ct-kv-l">Mots-clés reconnus</span><span class="ct-kv-v">{{ tender.matched_keywords[:8]|join(', ') if tender.matched_keywords else '—' }}</span></div>
+      </div>
+      {% if tender.raw %}
+      <details class="rd-raw" style="margin-top:var(--ct-6)">
+        <summary>Données brutes de la source</summary>
+        <pre>{{ tender.raw | tojson(indent=2) }}</pre>
+      </details>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── Details card ─────────────────────────────────────────────────────── #}
+<aside class="ct-card rd-details">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--ct-3)">
+    <div class="ct-kv"><span class="ct-kv-l">Date limite</span><span class="ct-kv-v">{{ tender.submission_deadline.strftime('%d/%m/%Y') if tender.submission_deadline else '—' }}{% if tender.submission_deadline %} <small>{{ tender.submission_deadline.strftime('%Hh%M') }}</small>{% endif %}</span></div>
+    {{ m.ring(tender) }}
+  </div>
+  <hr>
+  <div class="ct-kv"><span class="ct-kv-l">Estimation</span><span class="ct-kv-v">{{ m.amount(tender.estimated_amount, tender.currency) }}</span></div>
+  <div class="ct-kv"><span class="ct-kv-l">Caution provisoire</span><span class="ct-kv-v">{{ m.amount(tender.caution_provisoire, tender.currency) }}</span></div>
+  <div class="ct-kv"><span class="ct-kv-l">Acheteur</span><span class="ct-kv-v">{{ m.buyer_link(tender.buyer_raw, tender.buyer_id) }}</span></div>
+  <div class="ct-kv"><span class="ct-kv-l">Score de veille</span><span class="ct-kv-v">{{ '%.0f'|format(tender.match_score) }} <small>{{ 'dans votre domaine' if tender.match_score else 'hors domaine' }}</small></span></div>
+  {% if tender.matched_keywords %}<div class="rd-chips">{% for k in tender.matched_keywords[:6] %}<span class="ct-chip">{{ k }}</span>{% endfor %}</div>{% endif %}
+  <hr>
+  {% if tender.consultation_url %}<a class="ct-btn ct-btn-dark" href="{{ tender.consultation_url }}" target="_blank" rel="noopener">{{ m.icon('external') }} Voir sur le portail</a>{% endif %}
+  <a class="ct-btn" href="#suivi">{{ m.icon('bids') }} {{ 'Suivi : ' ~ bid.stage.label if bid else 'Suivre la candidature' }}</a>
+</aside>
 </div>
 {% endblock %}

@@ -421,6 +421,40 @@ def collect_awards(
     return run
 
 
+def _record_from_tender(tender: Tender) -> TenderRecord:
+    """Reconstitue l'entree du moteur de filtrage a partir d'un avis enregistre."""
+    return TenderRecord(
+        source=tender.source,
+        source_key=tender.source_key,
+        reference=tender.reference,
+        object=tender.object,
+        category=tender.category,
+        procedure_type=tender.procedure_type,
+        buyer_raw=tender.buyer_raw,
+        buyer_service=tender.buyer_service,
+        execution_place=tender.execution_place,
+        estimated_amount=tender.estimated_amount,
+        currency=tender.currency,
+    )
+
+
+def rescore_tenders(session: Session) -> tuple[int, int]:
+    """Recalcule le score de veille de tous les avis enregistres.
+
+    Le score est fige a la collecte : sans ce recalcul, un mot-cle ajoute a un
+    profil ne s'appliquerait qu'aux avis collectes ensuite. Renvoie
+    (avis recalcules, avis desormais pertinents).
+    """
+    profiles = list(
+        session.scalars(select(WatchProfile).where(WatchProfile.active.is_(True))).all()
+    )
+    tenders = list(session.scalars(select(Tender)).all())
+    for tender in tenders:
+        _apply_scoring(tender, _record_from_tender(tender), profiles)
+    session.flush()
+    return len(tenders), sum(1 for t in tenders if t.match_score > 0)
+
+
 def reindex_search(session: Session) -> tuple[int, int]:
     """Recalcule search_text sur toutes les lignes existantes.
 

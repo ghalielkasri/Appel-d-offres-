@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ buyer.name }}{% endblock %}
+{% block top_left %}<a class="ct-top-back" href="/acheteurs">{{ m.icon('back') }} Acheteurs</a><span class="ct-top-sep">/</span><h1 class="ct-top-title">{{ buyer.name }}</h1>{% endblock %}
+{% block top_right %}<a class="ct-btn rd-top-extra" href="/avis?acheteur={{ buyer.name|urlencode }}&pertinents=false">Tous ses avis</a>{% endblock %}
+{% block content %}
+<div class="ct-hello">
+  <div class="rd-who" style="gap:var(--ct-5)">
+    {{ m.logo(buyer.name, 64) }}
+    <div>
+      <h2>{{ buyer.name }}</h2>
+      <p>{{ history|length }} marché(s) attribué(s) connus, {{ suppliers|length }} fournisseur(s) différent(s){% if buyer.acronym %} · {{ buyer.acronym }}{% endif %}.</p>
+    </div>
+  </div>
+  <div class="ct-stats">
+    <div class="ct-stat"><span class="ct-stat-v">{{ open_tenders|length }}</span><span class="ct-stat-l">Avis ouverts</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ total|court }}<small>DH</small></span><span class="ct-stat-l">Attribué au total</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ suppliers|length }}</span><span class="ct-stat-l">Fournisseurs</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ '%.1f'|format(avg_bids) if avg_bids else '—' }}</span><span class="ct-stat-l">Concurrents moyens</span></div>
+  </div>
+</div>
+
+<div class="ct-section" style="margin-top:0"><div><h3>Consultations ouvertes</h3><p>Ce que cet acheteur publie en ce moment, tous domaines confondus</p></div></div>
+<div class="ct-card">
+  {% if open_tenders %}
+  <div class="rd-jobs">{% for t in open_tenders %}{{ m.tender_row(t) }}{% endfor %}</div>
+  {% else %}
+  <div style="padding-top:var(--ct-6)">{{ m.empty('Aucune consultation ouverte', "Les prochains avis de cet acheteur apparaîtront ici dès leur collecte.") }}</div>
+  {% endif %}
+</div>
+
+<div class="rd-grid-2" style="margin-top:var(--ct-10)">
+  <div class="ct-card">
+    <div class="ct-card-head"><div><h2>Qui gagne chez cet acheteur</h2><p>Les concurrents à battre ici</p></div></div>
+    {% if suppliers %}
+    {% set top = suppliers[0].total or 1 %}
+    <table class="rd-table"><tbody>
+    {% for s in suppliers[:8] %}
+      <tr>
+        <td>{{ m.company(s.name, s.id, 32, s.count ~ ' marché(s)' ~ (' · dernier ' ~ s.last.strftime('%m/%Y') if s.last else '')) }}</td>
+        <td class="w-bar hide-sm"><div class="ct-bar"><i style="width:{{ (100 * s.total / top)|round|int }}%"></i></div></td>
+        <td class="num"><span class="ct-n">{{ s.total|court }}</span><span class="rd-cur">DH</span></td>
+      </tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}{{ m.empty('Aucun attributaire connu', "Aucune attribution de cet acheteur n'a encore été collectée.") }}{% endif %}
+  </div>
+  <div class="ct-card">
+    <div class="ct-card-head"><div><h2>Ce qu'il achète</h2><p>Familles d'équipement des marchés attribués</p></div></div>
+    {% if families %}
+    {% set top = families[0].count or 1 %}
+    <table class="rd-table"><tbody>
+    {% for f in families %}
+      <tr>
+        <td><span class="rd-t1">{{ f.family|famille }}</span><span class="rd-t2">{{ f.total|court }} DH adjugés</span></td>
+        <td class="w-bar"><div class="ct-bar"><i style="width:{{ (100 * f.count / top)|round|int }}%"></i></div></td>
+        <td class="num" style="width:40px">{{ f.count }}</td>
+      </tr>
+    {% endfor %}
+    </tbody></table>
+    {% else %}{{ m.empty('Aucune famille reconnue', "Les marchés de cet acheteur ne portent pas sur de l'équipement de cuisine.") }}{% endif %}
+  </div>
+</div>
+
+{% if yearly|length > 1 %}
+<div class="ct-card" style="margin-top:var(--ct-5)">
+  <div class="ct-card-head"><div><h2>Montant attribué par année</h2><p>Sur les marchés dont la date d'attribution est connue</p></div></div>
+  {{ m.chart(yearly) }}
+</div>
+{% endif %}
+
+<div class="ct-section"><div><h3>Marchés attribués</h3><p>Du plus récent au plus ancien</p></div></div>
+<div class="ct-card">
+  {% if history %}
+  <div class="rd-scroll">
+  <table class="rd-table">
+    <thead><tr><th>Marché</th><th>Attributaire</th><th class="num">Adjugé</th><th class="num hide-sm">Concurrents</th><th class="num hide-sm">Date</th></tr></thead>
+    <tbody>
+    {% for a in history %}
+      <tr>
+        <td style="max-width:420px"><span class="rd-t1">{{ a.object or 'Objet non précisé' }}</span><span class="rd-t2">{{ a.reference or 'sans référence' }}{% if a.lot_number %} · lot {{ a.lot_number }}{% endif %}</span></td>
+        <td><div class="rd-who">{{ m.logo(a.supplier.name if a.supplier else a.supplier_raw, 28) }}<span>{{ m.supplier_link(a) }}</span></div></td>
+        <td class="num"><span class="ct-n">{{ m.amount(a.awarded_amount, a.currency) }}</span></td>
+        <td class="num hide-sm">{{ a.bids_count if a.bids_count is not none else '—' }}</td>
+        <td class="num hide-sm ct-muted">{{ a.award_date.strftime('%d/%m/%Y') if a.award_date else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="padding-top:var(--ct-6)">{{ m.empty('Aucune attribution connue', "L'historique de cet acheteur se remplit à chaque collecte des résultats.") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

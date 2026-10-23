@@ -1,80 +1,87 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
-{% block title %}Profils de veille - {{ app_name }}{% endblock %}
+{% import "_macros.html" as m with context %}
+{% block title %}Profils & canaux{% endblock %}
+{% block top_left %}<span class="ct-top-sect">Réglages</span><span class="ct-top-sep">/</span><h1 class="ct-top-title">Profils &amp; canaux</h1>{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="ct-hello">
   <div>
-    <h1>Profils de veille &amp; canaux d'alerte</h1>
-    <p class="page-sub">Ce qui definit votre domaine, et par ou partent les notifications</p>
+    <h2>Profils de veille</h2>
+    <p>Ce qui définit votre domaine, et par où partent les alertes. Chaque modification recalcule tous les avis déjà collectés.</p>
+  </div>
+  <div class="ct-stats">
+    <div class="ct-stat"><span class="ct-stat-v">{{ profiles | selectattr('active') | list | length }}</span><span class="ct-stat-l">Profils actifs</span></div>
+    <div class="ct-stat"><span class="ct-stat-v">{{ [settings.email_enabled, settings.whatsapp_enabled, settings.webhook_enabled] | select | list | length }}<small>/ 3</small></span><span class="ct-stat-l">Canaux actifs</span></div>
   </div>
 </div>
 
-<div class="card">
-  <h2>Canaux configures</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Canal</th><th>Etat</th><th>Destinataires</th><th>Variables d'environnement</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="strong">Email</td>
-          <td>{% if settings.email_enabled %}<span class="tag tag-success">actif</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</td>
-          <td>{{ settings.email_to | join(', ') or '-' }}</td>
-          <td class="mono cell-sub">SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_TO</td>
-        </tr>
-        <tr>
-          <td class="strong">WhatsApp</td>
-          <td>{% if settings.whatsapp_enabled %}<span class="tag tag-success">actif ({{ settings.whatsapp_provider }})</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</td>
-          <td>{{ settings.whatsapp_to | join(', ') or '-' }}</td>
-          <td class="mono cell-sub">WHATSAPP_PROVIDER, WHATSAPP_TO, TWILIO_* ou META_*</td>
-        </tr>
-        <tr>
-          <td class="strong">Webhook</td>
-          <td>{% if settings.webhook_enabled %}<span class="tag tag-success">actif</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</td>
-          <td class="mono cell-sub">{{ settings.webhook_url or '-' }}</td>
-          <td class="mono cell-sub">WEBHOOK_URL</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <p class="cell-sub" style="margin-bottom:0">
-    Verifiez un canal avec <span class="mono">radar test-notify</span>. Les reglages se font dans le fichier <span class="mono">.env</span>,
-    puis <span class="mono">docker compose restart</span>.
-  </p>
+<div class="ct-card">
+  <div class="ct-card-head"><div><h2>Canaux d'alerte</h2><p>Réglés dans le fichier <span class="rd-code">.env</span>, puis <span class="rd-code">docker compose restart</span>. Vérifiez-les avec <span class="rd-code">radar test-notify</span>.</p></div></div>
+  <table class="rd-table">
+    <tbody>
+    {% for name, ico, on, detail, targets, env in [
+      ('Email', 'mail', settings.email_enabled, '', settings.email_to | join(', '), 'SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_TO'),
+      ('WhatsApp', 'chat', settings.whatsapp_enabled, settings.whatsapp_provider, settings.whatsapp_to | join(', '), 'WHATSAPP_PROVIDER, WHATSAPP_TO, TWILIO_* ou META_*'),
+      ('Webhook', 'link', settings.webhook_enabled, 'Slack, Teams, n8n', settings.webhook_url, 'WEBHOOK_URL'),
+    ] %}
+      <tr>
+        <td><div class="rd-who"><span class="ct-logo" style="--s:36px;--c:var(--ct-ghost)"><span style="color:var(--ct-ink-2);display:grid">{{ m.icon(ico) }}</span></span><span><span class="rd-t1">{{ name }}</span><span class="rd-t2">{{ targets or 'aucun destinataire' }}</span></span></div></td>
+        <td class="hide-sm ct-faint" style="font-size:var(--ct-t-12)">{{ env }}</td>
+        <td class="num">{% if on %}<span class="ct-chip pos"><i></i>actif{% if detail %} · {{ detail }}{% endif %}</span>{% else %}<span class="ct-chip line">inactif</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 {% for p in profiles %}
-<div class="card">
-  <div class="card-head">
-    <h2>{{ p.name }} {% if p.active %}<span class="tag tag-success">actif</span>{% else %}<span class="tag tag-muted">inactif</span>{% endif %}</h2>
-    <span class="cell-sub">score minimal : {{ '%.0f'|format(p.min_score) }}</span>
+<div class="ct-card" id="profil-{{ p.id }}">
+  <div class="ct-card-head">
+    <div>
+      <h2>{{ p.name }} {% if p.active %}<span class="ct-chip pos" style="margin-left:6px"><i></i>actif</span>{% else %}<span class="ct-chip line" style="margin-left:6px">inactif</span>{% endif %}</h2>
+      <p>{{ p.description or 'Profil de veille' }}</p>
+    </div>
+    <form method="post" action="/veille/{{ p.id }}"><input type="hidden" name="action" value="toggle"><button class="ct-btn sm{{ '' if p.active else ' ct-btn-dark' }}" type="submit">{{ 'Désactiver' if p.active else 'Activer' }}</button></form>
   </div>
-  {% if p.description %}<p class="cell-sub">{{ p.description }}</p>{% endif %}
-  <dl class="meta">
-    <dt>Categories</dt><dd>{{ p.categories | join(', ') if p.categories else 'toutes' }}</dd>
-    <dt>Montant</dt>
-    <dd>
-      {% if p.min_amount or p.max_amount %}
-        {{ m.amount(p.min_amount) if p.min_amount else 'sans minimum' }} &rarr; {{ m.amount(p.max_amount) if p.max_amount else 'sans maximum' }}
-      {% else %}aucune limite{% endif %}
-    </dd>
-    <dt>Acheteurs</dt><dd>{{ p.buyers | join(', ') if p.buyers else 'tous' }}</dd>
-    <dt>Canaux</dt><dd>{{ p.channels | join(', ') if p.channels else 'tous les canaux actifs' }}</dd>
-  </dl>
-  <div style="margin-top:12px">
-    <div class="cell-sub" style="margin-bottom:4px">Mots-cles retenus ({{ p.keywords | length }})</div>
-    <div>{% for k in p.keywords %}<span class="kw">{{ k }}</span>{% endfor %}</div>
+  <div class="ct-card-pad">
+    <div class="rd-kv-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+      <div class="ct-kv"><span class="ct-kv-l">Catégories</span><span class="ct-kv-v">{{ p.categories | join(', ') if p.categories else 'Toutes' }}</span></div>
+      <div class="ct-kv"><span class="ct-kv-l">Montant</span><span class="ct-kv-v">{% if p.min_amount or p.max_amount %}{{ p.min_amount|court if p.min_amount else '0' }} → {{ p.max_amount|court if p.max_amount else '∞' }} <small>DH</small>{% else %}Sans limite{% endif %}</span></div>
+      <div class="ct-kv"><span class="ct-kv-l">Acheteurs</span><span class="ct-kv-v">{{ p.buyers | join(', ') if p.buyers else 'Tous' }}</span></div>
+      <div class="ct-kv"><span class="ct-kv-l">Score minimal d'alerte</span>
+        <form method="post" action="/veille/{{ p.id }}" style="display:flex;gap:var(--ct-2)">
+          <input type="hidden" name="action" value="min_score">
+          <input class="rd-input" name="value" type="number" step="0.5" min="0" value="{{ '%g'|format(p.min_score) }}" style="width:80px;height:32px" aria-label="Score minimal">
+          <button class="ct-btn sm" type="submit">OK</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="ct-section" style="margin:var(--ct-6) 0 var(--ct-3)"><div><h3 style="font-size:var(--ct-t-15)">Mots-clés <span class="ct-faint">{{ p.keywords|length }}</span></h3><p>3 points dans l'objet, 1 dans la procédure, 0,5 dans l'acheteur ou le lieu</p></div></div>
+    <div class="rd-chips">
+      {% for k in p.keywords %}
+      <span class="rd-kw">{{ k }}<form method="post" action="/veille/{{ p.id }}"><input type="hidden" name="action" value="remove_keyword"><input type="hidden" name="value" value="{{ k }}"><button type="submit" title="Retirer « {{ k }} »" aria-label="Retirer {{ k }}">{{ m.icon('x') }}</button></form></span>
+      {% else %}<span class="ct-faint" style="font-size:var(--ct-t-13)">Aucun mot-clé : le profil agit comme un filtre pur (catégorie, acheteur, montant).</span>{% endfor %}
+    </div>
+    <form method="post" action="/veille/{{ p.id }}" style="display:flex;gap:var(--ct-2);margin-top:var(--ct-3);max-width:520px">
+      <input type="hidden" name="action" value="add_keyword">
+      <input class="rd-input" name="value" placeholder="Ajouter : four à pizza, sorbetière…" aria-label="Mot-clé à ajouter" required>
+      <button class="ct-btn ct-btn-dark" type="submit">{{ m.icon('plus') }} Ajouter</button>
+    </form>
+
+    <div class="ct-section" style="margin:var(--ct-6) 0 var(--ct-3)"><div><h3 style="font-size:var(--ct-t-15)">Exclusions <span class="ct-faint">{{ p.excluded_keywords|length }}</span></h3><p>Un seul de ces termes écarte l'avis, quel que soit son score</p></div></div>
+    <div class="rd-chips">
+      {% for k in p.excluded_keywords %}
+      <span class="rd-kw ex">{{ k }}<form method="post" action="/veille/{{ p.id }}"><input type="hidden" name="action" value="remove_exclusion"><input type="hidden" name="value" value="{{ k }}"><button type="submit" title="Retirer « {{ k }} »" aria-label="Retirer {{ k }}">{{ m.icon('x') }}</button></form></span>
+      {% else %}<span class="ct-faint" style="font-size:var(--ct-t-13)">Aucune exclusion.</span>{% endfor %}
+    </div>
+    <form method="post" action="/veille/{{ p.id }}" style="display:flex;gap:var(--ct-2);margin-top:var(--ct-3);max-width:520px">
+      <input type="hidden" name="action" value="add_exclusion">
+      <input class="rd-input" name="value" placeholder="Exclure : gardiennage, nettoyage…" aria-label="Exclusion à ajouter" required>
+      <button class="ct-btn" type="submit">{{ m.icon('plus') }} Exclure</button>
+    </form>
   </div>
-  {% if p.excluded_keywords %}
-  <div style="margin-top:12px">
-    <div class="cell-sub" style="margin-bottom:4px">Mots-cles d'exclusion ({{ p.excluded_keywords | length }})</div>
-    <div>{% for k in p.excluded_keywords %}<span class="tag tag-danger" style="margin:1px 2px 1px 0">{{ k }}</span>{% endfor %}</div>
-  </div>
-  {% endif %}
 </div>
 {% endfor %}
 
-<div class="notice notice-info">
-  Pour modifier un profil : <span class="mono">radar profile-edit "{{ profiles[0].name if profiles else 'nom' }}" --add-keyword "pompe doseuse" --min-amount 50000</span>.
-  Le score additionne 3 points par mot-cle trouve dans l'objet du marche, 1 dans le type de procedure et 0,5 dans le nom de l'acheteur.
-</div>
+<p class="ct-faint" style="font-size:var(--ct-t-13);margin-top:var(--ct-5)">Plusieurs termes d'un coup : séparez-les par des virgules. En ligne de commande : <span class="rd-code">radar profile-edit "{{ profiles[0].name if profiles else 'nom' }}" --add-keyword "pompe doseuse"</span>.</p>
 {% endblock %}

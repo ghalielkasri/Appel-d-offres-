@@ -75,7 +75,7 @@ def cmd_demo(
     """
     _setup_logging()
     init_db()
-    from app.demo import clear_demo_data, load_demo_data
+    from app.demo import NAMES_FILE, clear_demo_data, load_demo_data, local_names
 
     with session_scope() as session:
         seed_profiles(session)
@@ -83,7 +83,10 @@ def cmd_demo(
             tenders, awards = clear_demo_data(session)
             console.print(f"[green]Retire : {tenders} avis, {awards} attribution(s).[/green]")
         else:
-            tenders, awards = load_demo_data(session)
+            names = local_names()
+            if names:
+                console.print(f"{len(names)} nom(s) d'entreprise remplace(s) depuis {NAMES_FILE}.")
+            tenders, awards = load_demo_data(session, names)
             console.print(
                 f"[green]Charge : {tenders} avis, {awards} attribution(s).[/green]\n"
                 "Lancez `radar serve` puis ouvrez http://localhost:8000"
@@ -735,6 +738,10 @@ def cmd_profile_edit(
         session.flush()
         console.print(f"[green]Profil « {profile.name} » mis a jour.[/green]")
         console.print(f"  {len(profile.keywords)} mot(s)-cle(s), score min {profile.min_score}, actif={profile.active}")
+        from app.pipeline import rescore_tenders
+
+        total, relevant = rescore_tenders(session)
+        console.print(f"  {total} avis recalcules, {relevant} pertinent(s) desormais.")
 
 
 @app.command("renotify")

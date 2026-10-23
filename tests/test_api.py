@@ -22,7 +22,8 @@ def client(seeded_session, monkeypatch):
 
 PAGES = [
     "/", "/recherche", "/avis", "/attributions", "/attributaires",
-    "/acheteurs", "/veille", "/exports",
+    "/acheteurs", "/veille", "/exports", "/candidatures",
+    "/profil", "/classement", "/segments", "/concurrents", "/activite",
 ]
 
 
@@ -34,7 +35,7 @@ def test_pages_render(client, path):
 
 
 @pytest.mark.parametrize(
-    "path", ["/api/health", "/api/tenders", "/api/awards", "/api/suppliers", "/api/stats"]
+    "path", ["/api/health", "/api/tenders", "/api/awards", "/api/suppliers", "/api/stats", "/api/bids", "/api/classement"]
 )
 def test_json_endpoints(client, path):
     response = client.get(path)
